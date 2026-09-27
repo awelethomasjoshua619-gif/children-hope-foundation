@@ -1,0 +1,134 @@
+// Children Hope Foundation — Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──────────────────────────────────────────────────
+
+enum Role {
+  DONOR
+  ADMIN
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum CampaignCategory {
+  EDUCATION
+  HEALTHCARE
+  FOOD
+  WATER
+  EMERGENCY
+  GENERAL
+}
+
+enum DonationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  ABANDONED
+}
+
+// ── Models ─────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(DONOR)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  donations Donation[]
+
+  @@map("users")
+}
+
+model Campaign {
+  id          String           @id @default(cuid())
+  title       String
+  slug        String           @unique
+  summary     String
+  description String
+  category    CampaignCategory
+  status      CampaignStatus   @default(DRAFT)
+  targetAmount Decimal          @db.Decimal(14, 2)
+  coverImage  String?
+  country     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  donations Donation[]
+
+  @@index([status])
+  @@index([category])
+  @@map("campaigns")
+}
+
+model Donation {
+  id             String         @id @default(cuid())
+  reference      String         @unique
+  amount         Decimal        @db.Decimal(14, 2) // major units, NGN
+  currency       String         @default("NGN")
+  status         DonationStatus @default(PENDING)
+  donorName      String
+  donorEmail     String
+  message        String?
+  anonymous      Boolean        @default(false)
+  paystackFees   Decimal?       @db.Decimal(14, 2)
+  paidAt         DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([donorEmail])
+  @@index([status])
+  @@map("donations")
+}
+
+model ImpactStat {
+  id        String   @id @default(cuid())
+  key       String   @unique // e.g. "wells", "students", "meals", "patients"
+  label     String
+  value     Int
+  icon      String   @default("Droplets") // lucide icon name
+  sortOrder Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@map("impact_stats")
+}
+
+model SiteSetting {
+  key   String @id
+  value String
+
+  @@map("site_settings")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String
+  message   String
+  handled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
+}
