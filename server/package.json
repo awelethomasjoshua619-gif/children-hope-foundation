@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "db:push": "dotenv -e ../.env -- prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "dotenv -e ../.env -- prisma studio"
+    "db:studio": "dotenv -e ../.env -- prisma studio",
+    "setup:paystack": "tsx scripts/setup-paystack.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
