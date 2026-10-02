@@ -1,10 +1,10 @@
 import path from 'path';
 import { config as loadEnv } from 'dotenv';
 
-// Load the root monorepo .env (from server/src/config via tsx, or server/dist/config after build).
+// Load the server's environment file from both source and compiled locations.
 // dotenv does not override variables that are already set, so real system env normally wins —
 // but an ambient PORT=0 (common in sandboxes/CI) is treated as "unset" in favor of .env below.
-const dotenvParsed = loadEnv({ path: path.resolve(__dirname, '../../../.env') });
+const dotenvParsed = loadEnv({ path: path.resolve(__dirname, '../../.env') });
 
 function required(name: string): string {
   const v = process.env[name];
@@ -33,13 +33,22 @@ export const config = {
   paystackSecretKey: required('PAYSTACK_SECRET_KEY'),
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY ?? '',
 
-  smtp: {
-    host: process.env.SMTP_HOST ?? '',
-    port: parseInt(process.env.SMTP_PORT ?? '587', 10),
-    secure: process.env.SMTP_SECURE === 'true',
-    user: process.env.SMTP_USER ?? '',
-    pass: process.env.SMTP_PASS ?? '',
-    from: process.env.MAIL_FROM ?? 'Children Hope Foundation <no-reply@childrenhope.org>',
-    adminAlertEmail: process.env.ADMIN_ALERT_EMAIL ?? 'admin@childrenhope.org',
-  },
 } as const;
+
+if (config.env === 'production') {
+  const requiredProductionVars = [
+    'DATABASE_URL',
+    'CLIENT_URL',
+    'JWT_SECRET',
+    'PAYSTACK_SECRET_KEY',
+    'RESEND_API_KEY',
+    'ADMIN_EMAIL',
+  ];
+  const missing = requiredProductionVars.filter((name) => !process.env[name]);
+  if (missing.length) {
+    throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+  }
+  if ((process.env.JWT_SECRET || '').length < 32) {
+    throw new Error('JWT_SECRET must contain at least 32 characters in production.');
+  }
+}

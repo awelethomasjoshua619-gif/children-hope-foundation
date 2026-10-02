@@ -1,65 +1,33 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Droplets, BookOpen, Utensils, Stethoscope } from 'lucide-react';
+import { ArrowRight, BookOpen, HeartPulse, Utensils, Droplets } from 'lucide-react';
 
-export const AboutPage: React.FC = () => {
-  const values = [
-    { icon: Droplets, title: 'Clean Water First', text: 'Water-borne illness steals more childhoods than anything else. Every community we enter gets safe water before anything else.' },
-    { icon: BookOpen, title: 'Education Unlocks Everything', text: 'Schools, books, uniforms and fees — we remove every barrier between a child and their classroom.' },
-    { icon: Utensils, title: 'No Child Studies Hungry', text: 'School meals and emergency food relief, because hunger and learning cannot coexist.' },
-    { icon: Stethoscope, title: 'Care Where They Live', text: 'Mobile clinics and community health workers bring treatment to children who would never reach a hospital.' },
-  ];
+const focusAreas = [
+  { icon: BookOpen, title: 'Education', description: 'Support access to learning and the resources children need to stay in school.' },
+  { icon: HeartPulse, title: 'Healthcare', description: 'Help children and families access essential care and health services.' },
+  { icon: Utensils, title: 'Food support', description: 'Respond to food insecurity with practical, accountable assistance.' },
+  { icon: Droplets, title: 'Clean water', description: 'Back community water access projects as they are developed and published.' },
+];
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-16">
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Our Story</span>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-          Every African Child Deserves Hope
-        </h1>
-        <p className="text-slate-600 leading-relaxed">
-          Children Hope Foundation exists for one reason: to make sure no child in the communities we serve is denied
-          education, health, food or clean water because of poverty.
-        </p>
-      </div>
+export const AboutPage: React.FC = () => (
+  <div className="mx-auto max-w-7xl space-y-16 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+    <section className="max-w-3xl">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#99782b]">Our purpose</p>
+      <h1 className="mt-4 font-serif text-4xl leading-[1.05] tracking-[-0.04em] text-[#16352f] sm:text-6xl">Children deserve the chance to thrive.</h1>
+      <p className="mt-6 text-lg leading-8 text-[#5e7069]">Children Hope Foundation is focused on supporting children in Africa through education, healthcare, and food assistance. This site is being built to make each published campaign and its confirmed funding easy to follow.</p>
+    </section>
 
-      {/* Mission cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {values.map((v) => (
-          <div key={v.title} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 space-y-4">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-              <v.icon className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-900">{v.title}</h3>
-            <p className="text-slate-600 text-sm leading-relaxed">{v.text}</p>
-          </div>
-        ))}
-      </div>
+    <section>
+      <div className="mb-7 max-w-2xl"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#99782b]">Areas of focus</p><h2 className="mt-2 font-serif text-3xl text-[#16352f]">The work we aim to support</h2></div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{focusAreas.map(({ icon: Icon, title, description }) => <article key={title} className="border border-[#d8ddd5] bg-[#fffdf8] p-6"><Icon className="h-6 w-6 text-[#98772d]" /><h3 className="mt-5 font-serif text-2xl text-[#16352f]">{title}</h3><p className="mt-3 text-sm leading-6 text-[#5e7069]">{description}</p></article>)}</div>
+    </section>
 
-      {/* Principles band */}
-      <div className="bg-blue-600 rounded-3xl p-10 md:p-14 text-white grid md:grid-cols-3 gap-8 shadow-xl shadow-blue-600/20">
-        {[
-          { title: 'Dignity First', text: 'We support children as people with voices and dreams, never as props for fundraising.' },
-          { title: 'Local Partnership', text: 'African-led organizations design the programs. We fund, amplify and verify.' },
-          { title: 'Radical Transparency', text: 'If we cannot show where a Naira went, we do not spend it.' },
-        ].map((p) => (
-          <div key={p.title} className="space-y-2">
-            <h4 className="font-extrabold text-lg">{p.title}</h4>
-            <p className="text-blue-100 text-sm leading-relaxed">{p.text}</p>
-          </div>
-        ))}
-      </div>
+    <section className="grid gap-8 border-y border-[#d8ddd5] py-10 md:grid-cols-3">{[
+      { title: 'Dignity', text: 'Treat children and communities with respect in how programs are designed and communicated.' },
+      { title: 'Local context', text: 'Build campaigns around clearly described needs and the communities they are intended to serve.' },
+      { title: 'Accountability', text: 'Show campaign targets and update funding totals only after payments are confirmed.' },
+    ].map((item) => <div key={item.title}><h3 className="font-serif text-2xl text-[#16352f]">{item.title}</h3><p className="mt-3 text-sm leading-6 text-[#5e7069]">{item.text}</p></div>)}</section>
 
-      {/* CTA */}
-      <div className="text-center space-y-6">
-        <h3 className="text-2xl font-black text-slate-900">Ready to change a child's story?</h3>
-        <Link
-          to="/campaigns"
-          className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-2xl shadow-xl shadow-blue-600/30 transition-all hover:-translate-y-0.5"
-        >
-          Explore Causes & Donate
-        </Link>
-      </div>
-    </div>
-  );
-};
+    <section className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center"><div><h2 className="font-serif text-3xl text-[#16352f]">Want to get in touch?</h2><p className="mt-2 text-sm text-[#5e7069]">Use the contact form to send a message.</p></div><Link to="/contact" className="inline-flex items-center gap-2 rounded-full bg-[#16352f] px-6 py-3 text-sm font-bold text-white hover:bg-[#244a40]">Contact us <ArrowRight className="h-4 w-4" /></Link></section>
+  </div>
+);

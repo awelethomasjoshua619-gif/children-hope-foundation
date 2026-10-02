@@ -1,25 +1,23 @@
 import React from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { Shield, LayoutDashboard, FolderHeart, ReceiptText, BarChart3, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, FolderHeart, ReceiptText, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { BrandMark } from '../../components/BrandMark';
 
 const TABS = [
   { to: '/admin/dashboard', label: 'Overview', icon: LayoutDashboard },
   { to: '/admin/campaigns', label: 'Campaigns', icon: FolderHeart },
   { to: '/admin/donations', label: 'Donations', icon: ReceiptText },
-  { to: '/admin/impact', label: 'Impact Stats', icon: BarChart3 },
 ];
 
 export const AdminLayout: React.FC = () => {
   const { user } = useAuth();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white">
-            <Shield className="w-5 h-5" />
-          </div>
+          <BrandMark size={44} />
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Admin Console</p>
             <h1 className="text-xl font-black text-slate-900 leading-tight">Children Hope Foundation</h1>
@@ -40,13 +38,13 @@ export const AdminLayout: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <nav className="mt-8 flex space-x-2 bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm">
+      <nav className="mt-6 flex gap-1 bg-white border border-slate-100 rounded-2xl p-1.5 shadow-sm sm:mt-8 sm:gap-2">
         {TABS.map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
-            className={({ isActive }) =>
-              `flex items-center space-x-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-colors ${
+            className={({ isActive }: { isActive: boolean }) =>
+              `flex min-w-0 flex-1 items-center justify-center gap-1 px-2 py-2.5 rounded-xl text-[11px] font-bold transition-colors sm:flex-none sm:gap-2 sm:px-5 sm:text-xs ${
                 isActive ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
               }`
             }

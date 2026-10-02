@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getImpact } from '../controllers/impactController';
 import { updateImpactStat, updateSiteSettings } from '../controllers/impactController';
-import { requireAdmin } from '../middleware/auth';
+import { authenticate, requireAdmin } from '../middleware/auth';
 import ah from '../middleware/asyncHandler';
 
 const router = Router();
@@ -10,7 +10,7 @@ const router = Router();
 router.get('/', ah(getImpact));
 
 // Admin
-router.put('/stats/:id', requireAdmin, ah(updateImpactStat));
-router.put('/settings', requireAdmin, ah(updateSiteSettings));
+router.put('/stats/:id', authenticate, requireAdmin, ah(updateImpactStat));
+router.put('/settings', authenticate, requireAdmin, ah(updateSiteSettings));
 
 export default router;

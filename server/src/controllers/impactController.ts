@@ -15,7 +15,7 @@ export async function getImpact(_req: Request, res: Response): Promise<void> {
   const settings: Record<string, string> = {};
   for (const s of settingsRows) settings[s.key] = s.value;
 
-  res.json({ stats, settings });
+  res.json({ success: true, data: { stats, settings } });
 }
 
 // ── PUT /api/admin/impact/stats/:id ────────────────────────
@@ -33,7 +33,7 @@ export async function updateImpactStat(req: Request, res: Response): Promise<voi
   if (!existing) throw new AppError(404, 'Impact stat not found');
 
   const stat = await prisma.impactStat.update({ where: { id: req.params.id }, data: body });
-  res.json({ stat });
+  res.json({ success: true, data: { stat } });
 }
 
 // ── PUT /api/admin/impact/settings ─────────────────────────
@@ -49,5 +49,5 @@ export async function updateSiteSettings(req: Request, res: Response): Promise<v
   const rows = await prisma.siteSetting.findMany();
   const settings: Record<string, string> = {};
   for (const s of rows) settings[s.key] = s.value;
-  res.json({ settings });
+  res.json({ success: true, data: { settings } });
 }

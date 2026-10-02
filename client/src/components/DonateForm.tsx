@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Heart, ShieldCheck, Lock, CreditCard } from 'lucide-react';
 import { donationApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -9,41 +9,45 @@ interface DonateFormProps {
 }
 
 const PRESET_AMOUNTS = [
-  { kobo: 500000, label: '₦5,000' },
-  { kobo: 1500000, label: '₦15,000' },
-  { kobo: 5000000, label: '₦50,000' },
-  { kobo: 10000000, label: '₦100,000' },
+  { cents: 2500, label: '$25' },
+  { cents: 5000, label: '$50' },
+  { cents: 10000, label: '$100' },
+  { cents: 25000, label: '$250' },
 ];
 
 export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitle }) => {
   const { user } = useAuth();
-  const [selectedKobo, setSelectedKobo] = useState<number>(1500000);
-  const [customNaira, setCustomNaira] = useState<string>('');
+  const [selectedCents, setSelectedCents] = useState<number>(5000);
+  const [customDollars, setCustomDollars] = useState<string>('');
   const [donorEmail, setDonorEmail] = useState<string>(user?.email || '');
   const [donorName, setDonorName] = useState<string>(user?.name || '');
   const [isAnonymous, setIsAnonymous] = useState<boolean>(false);
-  const [isRecurring, setIsRecurring] = useState<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const getEffectiveAmountKobo = (): number => {
-    if (customNaira) {
-      const val = parseFloat(customNaira);
+  useEffect(() => {
+    if (user?.email) setDonorEmail((value) => value || user.email);
+    if (user?.name) setDonorName((value) => value || user.name);
+  }, [user]);
+
+  const getEffectiveAmountCents = (): number => {
+    if (customDollars) {
+      const val = parseFloat(customDollars);
       if (!isNaN(val) && val > 0) {
         return Math.round(val * 100);
       }
     }
-    return selectedKobo;
+    return selectedCents;
   };
 
   const handleDonate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const amountKobo = getEffectiveAmountKobo();
-    if (amountKobo < 10000) { // ₦100 min
-      setError('Minimum donation amount is ₦100');
+    const amountCents = getEffectiveAmountCents();
+    if (amountCents < 500) {
+      setError('Minimum donation amount is $5');
       return;
     }
 
@@ -56,12 +60,12 @@ export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitl
 
     try {
       const res = await donationApi.initialize({
-        amount: amountKobo,
+        amount: amountCents,
         campaignId,
         donorEmail,
         donorName: isAnonymous ? 'Anonymous' : donorName,
         isAnonymous,
-        isRecurring,
+        currency: 'USD',
       });
 
       if (res.data?.authorizationUrl) {
@@ -77,7 +81,7 @@ export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitl
   };
 
   return (
-    <form onSubmit={handleDonate} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-2xl space-y-6">
+    <form onSubmit={handleDonate} className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-100 shadow-2xl space-y-6">
       <div className="border-b border-slate-100 pb-4">
         <h3 className="text-xl font-bold text-slate-900 flex items-center space-x-2">
           <Heart className="w-5 h-5 text-rose-500 fill-current" />
@@ -95,19 +99,19 @@ export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitl
       {/* Preset amount selector */}
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-          Select Amount (NGN)
+          Select Amount (USD)
         </label>
         <div className="grid grid-cols-2 gap-3">
           {PRESET_AMOUNTS.map((preset) => (
             <button
-              key={preset.kobo}
+              key={preset.cents}
               type="button"
               onClick={() => {
-                setSelectedKobo(preset.kobo);
-                setCustomNaira('');
+                setSelectedCents(preset.cents);
+                setCustomDollars('');
               }}
               className={`py-3.5 px-4 rounded-2xl text-sm font-bold transition-all border ${
-                selectedKobo === preset.kobo && !customNaira
+                selectedCents === preset.cents && !customDollars
                   ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/30'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
               }`}
@@ -121,48 +125,30 @@ export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitl
       {/* Custom amount */}
       <div>
         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
-          Or Enter Custom Amount (₦)
+          Or Enter Custom Amount (USD)
         </label>
         <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">₦</span>
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400">$</span>
           <input
             type="number"
-            min="100"
-            placeholder="e.g. 25000"
-            value={customNaira}
-            onChange={(e) => setCustomNaira(e.target.value)}
+            min="5"
+            placeholder="e.g. 75"
+            value={customDollars}
+            onChange={(e) => setCustomDollars(e.target.value)}
             className="w-full pl-10 pr-4 py-3.5 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-600/50 text-slate-900 font-semibold"
           />
         </div>
       </div>
 
-      {/* Frequency Toggle */}
-      <div className="flex bg-slate-100 p-1.5 rounded-2xl">
-        <button
-          type="button"
-          onClick={() => setIsRecurring(false)}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${
-            !isRecurring ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          One-Off Donation
-        </button>
-        <button
-          type="button"
-          onClick={() => setIsRecurring(true)}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-colors ${
-            isRecurring ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-900'
-          }`}
-        >
-          Monthly Recurring 💖
-        </button>
-      </div>
+      <p className="rounded-xl bg-blue-50 px-4 py-3 text-xs text-blue-800">
+        Paystack checkout accepts card payments, including international cards where enabled for this account.
+      </p>
 
       {/* Donor info */}
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
-            Email Address (for tax receipt) *
+            Email Address (for your donation receipt) *
           </label>
           <input
             type="email"
@@ -217,10 +203,10 @@ export const DonateForm: React.FC<DonateFormProps> = ({ campaignId, campaignTitl
       </button>
 
       {/* Trust badges */}
-      <div className="flex items-center justify-center space-x-4 pt-2 text-[11px] text-slate-400 font-semibold">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-2 text-[11px] text-slate-400 font-semibold">
         <span className="flex items-center space-x-1">
           <Lock className="w-3.5 h-3.5 text-blue-500" />
-          <span>256-bit Encrypted</span>
+        <span>Secure Checkout</span>
         </span>
         <span>•</span>
         <span className="flex items-center space-x-1">

@@ -1,212 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShieldCheck, Users, Droplets, BookOpen, Utensils, ArrowRight } from 'lucide-react';
-import { campaignApi, impactApi } from '../lib/api';
-import { Campaign, ImpactStat } from '../types';
+import { ArrowRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { campaignApi } from '../lib/api';
+import { Campaign } from '../types';
 import { CampaignCard } from '../components/CampaignCard';
-
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Droplets,
-  BookOpen,
-  Utensils,
-  Users,
-};
-
-function formatStat(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
-  if (value >= 100_000) return `${Math.round(value / 1000)}K`;
-  return value.toLocaleString();
-}
-
-function renderHeadline(text: string): React.ReactNode {
-  // The last comma-separated phrase is highlighted in blue, matching the original design.
-  const parts = text.split(',');
-  if (parts.length < 2) return text;
-  const head = parts.slice(0, -1).join(',');
-  const tail = parts[parts.length - 1];
-  return (
-    <>
-      {head}, <span className="text-blue-600">{tail.trim()}</span>
-    </>
-  );
-}
 
 export const HomePage: React.FC = () => {
   const [featuredCampaigns, setFeaturedCampaigns] = useState<Campaign[]>([]);
-  const [impactStats, setImpactStats] = useState<ImpactStat[]>([]);
-  const [settings, setSettings] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    campaignApi
-      .list({ limit: 3 })
-      .then((res) => {
-        if (res.data?.campaigns) {
-          setFeaturedCampaigns(res.data.campaigns);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    impactApi
-      .get()
-      .then((res) => {
-        if (res.data?.stats) setImpactStats(res.data.stats);
-        if (res.data?.settings) setSettings(res.data.settings);
-      })
-      .catch(() => {});
+    campaignApi.list({ limit: 3 }).then((res) => setFeaturedCampaigns(res.data?.campaigns ?? [])).catch(() => setFeaturedCampaigns([])).finally(() => setLoading(false));
   }, []);
 
   return (
-    <div className="space-y-24 pb-24">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-32 bg-gradient-to-b from-blue-50/50 via-white to-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-            {/* Left Col */}
-            <div className="lg:col-span-7 space-y-8 text-center lg:text-left">
-              <div className="inline-flex items-center space-x-2 bg-blue-100/70 border border-blue-200 text-blue-800 text-xs font-extrabold px-4 py-2 rounded-full uppercase tracking-wider">
-                <Heart className="w-3.5 h-3.5 fill-current text-blue-600" />
-                <span>{settings.hero_headline_badge ?? 'Empowering Communities Across Africa'}</span>
-              </div>
-
-              <h1 className="text-4xl sm:text-6xl font-black text-slate-900 tracking-tight leading-[1.1]">
-                {renderHeadline(settings.hero_headline ?? 'Every Child Deserves Hope, Education & Clean Water.')}
-              </h1>
-
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                Join thousands of monthly donors supporting clean water drilling, emergency food relief, schools, and medical care in underserved communities across Africa.
-              </p>
-
-              <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
-                <Link
-                  to="/campaigns"
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 rounded-2xl text-base shadow-xl shadow-blue-600/30 transition-all hover:-translate-y-0.5 text-center"
-                >
-                  Explore Causes & Donate
-                </Link>
-                <Link
-                  to="/transparency"
-                  className="w-full sm:w-auto bg-white hover:bg-slate-50 text-slate-700 font-bold px-8 py-4 rounded-2xl text-base border border-slate-200 shadow-sm transition-colors text-center"
-                >
-                  How Money Is Used
-                </Link>
-              </div>
-
-              {/* Trust Callout */}
-              <div className="pt-6 border-t border-slate-200 flex items-center justify-center lg:justify-start space-x-6 text-xs text-slate-500 font-semibold">
-                <div className="flex items-center space-x-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                  <span>100% Verified Impact</span>
-                </div>
-                <div>•</div>
-                <div>Tax-Deductible Receipts</div>
-                <div>•</div>
-                <div>Paystack Secure</div>
-              </div>
+    <div className="overflow-hidden bg-[#f7f5ef]">
+      <section className="bg-[#16352f] pb-12 pt-10 text-white sm:pb-16 lg:pb-20 lg:pt-16">
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 sm:px-6 lg:grid-cols-[1.02fr_.98fr] lg:items-center lg:gap-16 lg:px-8">
+          <div className="max-w-2xl">
+            <div className="mb-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ddcb8d]"><span className="h-px w-8 bg-[#ddcb8d]" />Children Hope Foundation</div>
+            <h1 className="max-w-xl font-serif text-4xl leading-[1.02] tracking-[-0.045em] text-[#fffdf7] sm:text-6xl lg:text-7xl">A future where every child can thrive.</h1>
+            <p className="mt-7 max-w-lg text-base leading-8 text-[#d6e0d9] sm:text-lg">Our mission is to support children in Africa through education, healthcare, and food assistance. Campaigns and funding totals are published here as they are established and confirmed.</p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <Link to="/campaigns" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#d8b661] px-6 py-3.5 text-sm font-bold text-[#16352f] transition hover:bg-[#eed286]">Browse campaigns <ArrowUpRight className="h-4 w-4" /></Link>
+              <Link to="/transparency" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#789087] px-6 py-3.5 text-sm font-bold text-white transition hover:border-[#d8b661] hover:text-[#f4df9d]">See our approach</Link>
             </div>
-
-            {/* Right Col: Hero Image Card */}
-            <div className="lg:col-span-5 relative">
-              <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl border-4 border-white">
-                <img
-                  src="https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?q=80&w=800&fit=crop"
-                  alt="Children smiling"
-                  className="w-full h-[460px] object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-transparent to-transparent flex flex-col justify-end p-8 text-white">
-                  <span className="text-xs font-bold uppercase tracking-widest text-blue-300">Active Impact</span>
-                  <h4 className="text-2xl font-bold mt-1">{settings.hero_card_title ?? '1,000+ Children Enrolled for 2024'}</h4>
-                  <p className="text-xs text-slate-300 mt-2">Thanks to your monthly contributions across Nigeria and East Africa.</p>
-                </div>
-              </div>
+            <div className="mt-11 flex flex-wrap gap-x-7 gap-y-3 border-t border-white/15 pt-6 text-xs font-medium text-[#cedad3]">
+              <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-[#d8b661]" /> Campaign totals update after verified payments</span>
+            </div>
+          </div>
+          <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
+            <div className="absolute -right-8 -top-8 hidden h-40 w-40 rounded-full border border-[#d8b661]/50 lg:block" />
+            <div className="relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-t-[6rem] rounded-bl-[5rem] rounded-br-[2rem] border border-white/20 bg-[#23473f] p-6 pt-24 shadow-2xl shadow-black/20 sm:min-h-[500px] sm:rounded-t-[9rem] sm:rounded-bl-[7rem] sm:p-10 sm:pt-36">
+              <div className="absolute -right-20 top-20 h-72 w-72 rounded-full border border-[#d8b661]/40" /><div className="absolute -right-8 top-32 h-48 w-48 rounded-full border border-[#d8b661]/25" />
+              <div className="relative max-w-xs"><p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#ddcb8d]">A clear place to start</p><h2 className="mt-4 font-serif text-3xl leading-tight text-[#fffdf7] sm:text-4xl">Education. Healthcare. Food support.</h2></div>
+              <div className="relative border-t border-white/20 pt-5"><p className="max-w-sm text-sm leading-6 text-[#d6e0d9]">Campaign details, targets, and confirmed contributions will appear here when published.</p></div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Impact Stats Section — live from DB */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-slate-900 text-white rounded-[3rem] p-10 sm:p-16 shadow-2xl relative overflow-hidden">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center relative z-10">
-            {(impactStats.length > 0
-              ? impactStats
-              : [
-                  { id: '1', key: 'wells', label: 'Clean Water Wells', value: 0, icon: 'Droplets', sortOrder: 1 },
-                  { id: '2', key: 'students', label: 'Students Supported', value: 0, icon: 'BookOpen', sortOrder: 2 },
-                  { id: '3', key: 'meals', label: 'Meals Served', value: 0, icon: 'Utensils', sortOrder: 3 },
-                  { id: '4', key: 'patients', label: 'Medical Patients', value: 0, icon: 'Users', sortOrder: 4 },
-                ]
-            ).map((stat, i) => {
-              const Icon = ICONS[stat.icon] ?? Heart;
-              const palette = [
-                'bg-blue-500/20 text-blue-400',
-                'bg-emerald-500/20 text-emerald-400',
-                'bg-amber-500/20 text-amber-400',
-                'bg-rose-500/20 text-rose-400',
-              ];
-              return (
-                <div key={stat.id} className="space-y-2">
-                  <div className={`w-12 h-12 ${palette[i % 4]} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <div className="text-4xl font-black tracking-tight text-white">{formatStat(stat.value)}</div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-slate-400">{stat.label}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+        <div className="mb-11 flex flex-col justify-between gap-6 md:flex-row md:items-end"><div className="max-w-xl"><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#99782b]">Where help is needed now</p><h2 className="mt-3 font-serif text-4xl leading-none tracking-[-0.035em] text-[#16352f] sm:text-5xl">Ways to make a direct difference.</h2></div><Link to="/campaigns" className="inline-flex items-center gap-2 text-sm font-bold text-[#16352f] hover:text-[#99782b]">Explore all campaigns <ArrowRight className="h-4 w-4" /></Link></div>
+        {loading ? <div className="grid grid-cols-1 gap-6 md:grid-cols-3">{[1, 2, 3].map((i) => <div key={i} className="h-[430px] animate-pulse bg-[#e7e8e1]" />)}</div> : featuredCampaigns.length === 0 ? <div className="border border-[#d8ddd5] bg-[#fffdf8] px-6 py-12 text-center"><h3 className="font-serif text-2xl text-[#16352f]">No active campaigns yet</h3><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-[#5e7069]">Campaigns will appear here when they are created and published.</p></div> : <div className="grid grid-cols-1 gap-6 md:grid-cols-3">{featuredCampaigns.map((campaign) => <CampaignCard key={campaign.id} campaign={campaign} />)}</div>}
       </section>
 
-      {/* Featured Campaigns Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end">
-          <div className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Urgent Needs</span>
-            <h2 className="text-3xl font-black text-slate-900 tracking-tight">Featured Campaigns</h2>
-          </div>
-          <Link
-            to="/campaigns"
-            className="mt-4 md:mt-0 font-bold text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
-          >
-            <span>View All Causes</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-96 bg-slate-100 animate-pulse rounded-3xl" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {featuredCampaigns.map((campaign) => (
-              <CampaignCard key={campaign.id} campaign={campaign} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Transparency Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-blue-600 rounded-3xl p-10 md:p-14 text-white flex flex-col md:flex-row items-center justify-between shadow-xl shadow-blue-600/20">
-          <div className="space-y-3 text-center md:text-left mb-6 md:mb-0">
-            <h3 className="text-2xl md:text-3xl font-extrabold">100% Financial Transparency Guarantee</h3>
-            <p className="text-blue-100 max-w-xl text-sm leading-relaxed">
-              Every Naira and Dollar donated is tracked directly to on-the-ground projects. Download our annual impact reports and audit summaries at any time.
-            </p>
-          </div>
-          <Link
-            to="/transparency"
-            className="bg-white text-blue-700 font-bold px-8 py-4 rounded-2xl hover:bg-slate-100 transition-colors shadow-md shrink-0"
-          >
-            Review Financials
-          </Link>
-        </div>
-      </section>
+      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8 lg:pb-28"><div className="grid gap-8 border-y border-[#d8ddd5] py-10 md:grid-cols-[.75fr_1.25fr] md:gap-16"><div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#7c6628]">Accountability</p><h2 className="mt-3 font-serif text-3xl leading-tight text-[#16352f]">See the figures that are actually recorded.</h2></div><div><p className="max-w-xl text-sm leading-7 text-[#4f625a]">Campaign totals on this site change only after a payment provider confirms a donation. Any campaign target is shown separately from money received.</p><Link to="/transparency" className="mt-5 inline-flex items-center gap-2 border-b border-[#16352f] pb-1 text-sm font-bold text-[#16352f] hover:border-[#99782b] hover:text-[#99782b]">View campaign funding <ArrowRight className="h-4 w-4" /></Link></div></div></section>
     </div>
   );
 };

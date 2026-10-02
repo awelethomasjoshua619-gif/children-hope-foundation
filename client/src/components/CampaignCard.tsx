@@ -1,55 +1,24 @@
 import React from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Heart, ArrowRight } from 'lucide-react';
 import { Campaign } from '../types';
 import { ProgressBar } from './ProgressBar';
+import { CampaignArtwork } from './CampaignArtwork';
 
-interface CampaignCardProps {
-  campaign: Campaign;
-}
+interface CampaignCardProps { campaign: Campaign; }
 
-export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign }) => {
-  return (
-    <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 transition-all hover:-translate-y-1 flex flex-col h-full group">
-      {/* Image */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-slate-100">
-        <img
-          src={campaign.imageUrl || 'https://images.unsplash.com/photo-1594608661623-aa0bd3a69d98?q=80&w=800&fit=crop'}
-          alt={campaign.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-        />
-        <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-md text-blue-600 font-bold text-xs px-3 py-1.5 rounded-full uppercase tracking-wider shadow-sm">
-          {campaign.category}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-6 flex-1 flex flex-col justify-between space-y-6">
-        <div className="space-y-3">
-          <Link to={`/campaigns/${campaign.slug}`}>
-            <h3 className="text-xl font-bold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
-              {campaign.title}
-            </h3>
-          </Link>
-          <p className="text-slate-600 text-sm line-clamp-2 leading-relaxed">
-            {campaign.description}
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          <ProgressBar raised={campaign.raisedAmount} goal={campaign.goalAmount} />
-
-          <Link
-            to={`/campaigns/${campaign.slug}`}
-            className="w-full bg-slate-900 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center space-x-2 transition-all shadow-md group-hover:shadow-blue-600/30"
-          >
-            <Heart className="w-4 h-4 fill-current text-rose-400 group-hover:text-white transition-colors" />
-            <span>Support This Cause</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </div>
+export const CampaignCard: React.FC<CampaignCardProps> = ({ campaign }) => (
+  <article className="group flex h-full flex-col overflow-hidden border border-[#d8ddd5] bg-[#fffdf8] transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-[#16352f]/10">
+    <Link to={`/campaigns/${campaign.slug}`} className="relative block aspect-[4/3] overflow-hidden bg-[#e7e8e1]">
+      {campaign.imageUrl ? <img src={campaign.imageUrl} alt={campaign.imageUrl.includes('-illustrative.') ? `${campaign.category} illustrative stock photo` : campaign.title} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" loading="lazy" /> : <CampaignArtwork category={campaign.category} />}
+      <span className="absolute left-4 top-4 bg-[#fffdf8] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6f622c]">{campaign.category}</span>
+      {campaign.imageUrl?.includes('-illustrative.') && <span className="absolute bottom-3 right-3 rounded-full bg-[#102a25]/85 px-3 py-1 text-[9px] font-semibold tracking-wide text-white">Illustrative photo</span>}
+    </Link>
+    <div className="flex flex-1 flex-col p-6">
+      <Link to={`/campaigns/${campaign.slug}`}><h3 className="font-serif text-2xl leading-7 text-[#16352f] transition group-hover:text-[#8c702b]">{campaign.title}</h3></Link>
+      <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#5e7069]">{campaign.description}</p>
+      <div className="mt-7"><ProgressBar raised={campaign.raisedAmount} goal={campaign.goalAmount} /></div>
+      <Link to={`/campaigns/${campaign.slug}`} className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#16352f] transition hover:text-[#9a7d31]">View campaign <ArrowRight className="h-4 w-4" /></Link>
     </div>
-  );
-};
+  </article>
+);

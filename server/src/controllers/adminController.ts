@@ -1,204 +1,141 @@
-import type { Request, Response } from 'express';
-import { Prisma, DonationStatus } from '@prisma/client';
-import { z } from 'zod';
+import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../lib/prisma';
+import { stringify } from 'csv-stringify/sync';
 
-function csvEscape(v: unknown): string {
-  const s = String(v ?? '');
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+// GET /api/admin/stats
+export const getStats = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-// ── GET /api/admin/stats ───────────────────────────────────
-
-export async function getStats(_req: Request, res: Response): Promise<void> {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-  const [donationAgg, donorCount, campaignCount, pendingCount, monthAgg, recentDonations, activeCampaigns, grouped, monthly] =
-    await Promise.all([
+    const [
+      totalDonations,
+      totalRaisedResult,
+      thisMonthResult,
+      totalDonors,
+      activeCampaigns,
+      recentDonations,
+    ] = await Promise.all([
+      prisma.donation.count({ where: { status: 'SUCCESS', currency: 'USD' } }),
       prisma.donation.aggregate({
-        where: { status: 'SUCCESS' },
+        where: { status: 'SUCCESS', currency: 'USD' },
+        _sum: { amount: true },
+      }),
+      prisma.donation.aggregate({
+        where: { status: 'SUCCESS', currency: 'USD', createdAt: { gte: startOfMonth } },
         _sum: { amount: true },
         _count: true,
-      }),
-      prisma.user.count({ where: { role: 'DONOR' } }),
-      prisma.campaign.count({ where: { status: 'ACTIVE' } }),
-      prisma.donation.count({ where: { status: 'PENDING' } }),
-      prisma.donation.aggregate({
-        where: { status: 'SUCCESS', paidAt: { gte: monthStart } },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.donation.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-        include: { campaign: { select: { title: true } } },
-      }),
-      prisma.campaign.findMany({
-        where: { status: { in: ['ACTIVE', 'COMPLETED'] } },
-        orderBy: { createdAt: 'asc' },
       }),
       prisma.donation.groupBy({
-        by: ['campaignId'],
-        where: { status: 'SUCCESS' },
-        _sum: { amount: true },
+        by: ['donorEmail'],
+        where: { status: 'SUCCESS', currency: 'USD' },
+      }).then((r) => r.length),
+      prisma.campaign.count({ where: { status: 'ACTIVE' } }),
+      prisma.donation.findMany({
+        where: { status: 'SUCCESS', currency: 'USD' },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: { campaign: { select: { title: true } } },
       }),
-      prisma.$queryRaw<Array<{ month: Date; total: Prisma.Decimal; count: bigint }>>`
-        SELECT date_trunc('month', "paidAt") AS month,
-               SUM(amount) AS total,
-               COUNT(*) AS count
-        FROM donations
-        WHERE status = 'SUCCESS' AND "paidAt" IS NOT NULL
-        GROUP BY 1
-        ORDER BY 1 DESC
-        LIMIT 12`,
     ]);
 
-  const raisedMap = new Map(grouped.map((g) => [g.campaignId, Number(g._sum.amount ?? 0)]));
+    res.json({
+      success: true,
+      data: {
+        totalDonations,
+        totalRaised: totalRaisedResult._sum.amount || 0,
+        thisMonthRaised: thisMonthResult._sum.amount || 0,
+        thisMonthCount: thisMonthResult._count,
+        totalDonors,
+        activeCampaigns,
+        recentDonations,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-  res.json({
-    stats: {
-      totalRaised: Number(donationAgg._sum.amount ?? 0),
-      donationCount: donationAgg._count,
-      donorCount,
-      activeCampaignCount: campaignCount,
-      pendingDonationCount: pendingCount,
-      avgDonation: donationAgg._count > 0 ? Number(donationAgg._sum.amount ?? 0) / donationAgg._count : 0,
-      monthRaised: Number(monthAgg._sum.amount ?? 0),
-      monthCount: monthAgg._count,
-    },
-    recentDonations: recentDonations.map((d) => ({
-      id: d.id,
-      reference: d.reference,
-      donorName: d.donorName,
-      amount: Number(d.amount),
-      status: d.status,
-      campaignTitle: d.campaign.title,
-      createdAt: d.createdAt,
-    })),
-    topCampaigns: activeCampaigns
-      .map((c) => {
-        const raised = raisedMap.get(c.id) ?? 0;
-        const target = Number(c.targetAmount);
-        return {
-          id: c.id,
-          title: c.title,
-          status: c.status,
-          category: c.category,
-          target,
-          raised,
-          progress: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
-        };
-      })
-      .sort((a, b) => b.raised - a.raised),
-    monthly: monthly.map((m) => ({ month: m.month, total: Number(m.total), count: Number(m.count) })),
-  });
-}
+// GET /api/admin/donations — filterable, with CSV export
+export const getAllDonations = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const status = req.query.status as string | undefined;
+    const campaignId = req.query.campaignId as string | undefined;
+    const donorEmail = req.query.donorEmail as string | undefined;
+    const q = (req.query.q as string | undefined)?.trim();
+    const from = req.query.from ? new Date(req.query.from as string) : undefined;
+    const to = req.query.to ? new Date(req.query.to as string) : undefined;
+    const exportCsv = req.query.export === 'csv';
 
-// ── GET /api/admin/donations (paginated + filters) ─────────
+    const where = {
+      ...(status && { status: status as any }),
+      ...(campaignId && { campaignId }),
+      ...(donorEmail && { donorEmail: { contains: donorEmail, mode: 'insensitive' as any } }),
+      ...(q && {
+        OR: [
+          { donorEmail: { contains: q, mode: 'insensitive' as any } },
+          { donorName: { contains: q, mode: 'insensitive' as any } },
+          { paystackRef: { contains: q, mode: 'insensitive' as any } },
+        ],
+      }),
+      ...((from || to) && {
+        createdAt: {
+          ...(from && { gte: from }),
+          ...(to && { lte: to }),
+        },
+      }),
+    };
 
-export async function listDonations(req: Request, res: Response): Promise<void> {
-  const query = z
-    .object({
-      page: z.coerce.number().int().min(1).default(1),
-      pageSize: z.coerce.number().int().min(1).max(100).default(20),
-      status: z.nativeEnum(DonationStatus).optional(),
-      q: z.string().trim().max(100).optional(),
-    })
-    .parse(req.query);
+    if (exportCsv) {
+      const donations = await prisma.donation.findMany({
+        where,
+        include: { campaign: { select: { title: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
 
-  const where: Prisma.DonationWhereInput = {
-    ...(query.status ? { status: query.status } : {}),
-    ...(query.q
-      ? {
-          OR: [
-            { donorEmail: { contains: query.q, mode: 'insensitive' } },
-            { donorName: { contains: query.q, mode: 'insensitive' } },
-            { reference: { contains: query.q, mode: 'insensitive' } },
-          ],
-        }
-      : {}),
-  };
+      const rows = donations.map((d) => ({
+        ID: d.id,
+        Reference: d.paystackRef,
+        'Donor Name': d.isAnonymous ? 'Anonymous' : (d.donorName || ''),
+        'Donor Email': d.donorEmail,
+        Campaign: d.campaign.title,
+        'Amount (USD)': (d.amount / 100).toFixed(2),
+        Currency: d.currency,
+        Status: d.status,
+        Recurring: d.isRecurring ? 'Yes' : 'No',
+        Date: d.createdAt.toISOString(),
+      }));
 
-  const [total, donations] = await Promise.all([
-    prisma.donation.count({ where }),
-    prisma.donation.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
-      include: { campaign: { select: { title: true } } },
-    }),
-  ]);
+      const csv = stringify(rows, { header: true });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="donations-${Date.now()}.csv"`
+      );
+      return res.send(csv);
+    }
 
-  res.json({
-    donations: donations.map((d) => ({
-      id: d.id,
-      reference: d.reference,
-      donorName: d.donorName,
-      donorEmail: d.donorEmail,
-      amount: Number(d.amount),
-      currency: d.currency,
-      status: d.status,
-      campaignTitle: d.campaign.title,
-      message: d.message,
-      paidAt: d.paidAt,
-      createdAt: d.createdAt,
-    })),
-    pagination: { page: query.page, pageSize: query.pageSize, total, pages: Math.ceil(total / query.pageSize) },
-  });
-}
+    const [donations, total] = await Promise.all([
+      prisma.donation.findMany({
+        where,
+        include: { campaign: { select: { title: true, slug: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.donation.count({ where }),
+    ]);
 
-// ── GET /api/admin/donations/export (CSV) ──────────────────
-
-export async function exportDonationsCsv(_req: Request, res: Response): Promise<void> {
-  const donations = await prisma.donation.findMany({
-    orderBy: { createdAt: 'desc' },
-    include: { campaign: { select: { title: true } } },
-  });
-
-  const header = ['reference', 'donorName', 'donorEmail', 'amount', 'currency', 'status', 'campaign', 'message', 'createdAt', 'paidAt'];
-  const rows = donations.map((d) =>
-    [
-      d.reference,
-      d.donorName,
-      d.donorEmail,
-      Number(d.amount).toFixed(2),
-      d.currency,
-      d.status,
-      d.campaign.title,
-      d.message ?? '',
-      d.createdAt.toISOString(),
-      d.paidAt?.toISOString() ?? '',
-    ]
-      .map(csvEscape)
-      .join(','),
-  );
-
-  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="donations-${new Date().toISOString().slice(0, 10)}.csv"`);
-  res.send([header.join(','), ...rows].join('\n'));
-}
-
-// ── GET /api/admin/contact-messages ────────────────────────
-
-export async function listContactMessages(req: Request, res: Response): Promise<void> {
-  const query = z.object({ handled: z.coerce.boolean().optional() }).parse(req.query);
-  const messages = await prisma.contactMessage.findMany({
-    where: query.handled !== undefined ? { handled: query.handled } : {},
-    orderBy: { createdAt: 'desc' },
-    take: 100,
-  });
-  res.json({ messages });
-}
-
-// ── PATCH /api/admin/contact-messages/:id ──────────────────
-
-export async function markMessageHandled(req: Request, res: Response): Promise<void> {
-  const { handled } = z.object({ handled: z.boolean() }).parse(req.body);
-  const message = await prisma.contactMessage.update({
-    where: { id: req.params.id },
-    data: { handled },
-  });
-  res.json({ message });
-}
+    res.json({
+      success: true,
+      data: {
+        donations,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

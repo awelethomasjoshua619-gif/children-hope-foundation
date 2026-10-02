@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Route, Routes, useLocation, Link } from 'react-router-dom';
+import { Route, Routes, useLocation, Link, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -21,7 +21,6 @@ import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminCampaignsPage } from './pages/admin/AdminCampaignsPage';
 import { AdminDonationsPage } from './pages/admin/AdminDonationsPage';
-import { AdminImpactPage } from './pages/admin/AdminImpactPage';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -35,8 +34,8 @@ function ScrollToTop() {
 function RequireAuth({ children, adminOnly = false }: { children: React.ReactNode; adminOnly?: boolean }) {
   const { user, loading } = useAuth();
   if (loading) return <Spinner />;
-  if (!user) return <Link to={adminOnly ? '/admin/login' : '/login'} replace />;
-  if (adminOnly && user.role !== 'ADMIN') return <Link to="/" replace />;
+  if (!user) return <Navigate to={adminOnly ? '/admin/login' : '/login'} replace />;
+  if (adminOnly && user.role !== 'ADMIN') return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -78,7 +77,6 @@ function AppRoutes() {
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="campaigns" element={<AdminCampaignsPage />} />
             <Route path="donations" element={<AdminDonationsPage />} />
-            <Route path="impact" element={<AdminImpactPage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />

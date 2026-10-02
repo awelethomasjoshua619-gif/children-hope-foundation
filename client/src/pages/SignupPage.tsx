@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { authApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { BrandMark } from '../components/BrandMark';
 
 export const SignupPage: React.FC = () => {
   const { login } = useAuth();
@@ -36,9 +37,7 @@ export const SignupPage: React.FC = () => {
     <div className="max-w-md mx-auto px-4 py-20">
       <div className="bg-white p-8 md:p-10 rounded-3xl border border-slate-100 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white mx-auto shadow-md shadow-blue-500/20">
-            <Heart className="w-6 h-6 fill-current" />
-          </div>
+          <BrandMark size={56} className="mx-auto shadow-md shadow-emerald-900/15" />
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Create Donor Account</h2>
           <p className="text-xs text-slate-500">Track your contributions & download tax receipts anytime</p>
         </div>

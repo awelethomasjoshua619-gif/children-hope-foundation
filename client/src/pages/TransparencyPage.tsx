@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, FileText, Scale, Droplets, BookOpen, Utensils } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { campaignApi } from '../lib/api';
 import { Campaign } from '../types';
 import { ProgressBar } from '../components/ProgressBar';
+import { formatUsd } from '../lib/currency';
 
 export const TransparencyPage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -18,105 +19,42 @@ export const TransparencyPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const formatMoney = (kobo: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(kobo / 100);
-
-  const allocations = [
-    { icon: Droplets, label: 'Water & Sanitation', pct: 30, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { icon: BookOpen, label: 'Education & Schools', pct: 30, color: 'text-violet-600', bg: 'bg-violet-50' },
-    { icon: Utensils, label: 'Food & Nutrition', pct: 25, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { icon: Scale, label: 'Operations & Audit', pct: 15, color: 'text-slate-600', bg: 'bg-slate-100' },
-  ];
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-16">
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Accountability</span>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight">100% Financial Transparency</h1>
-        <p className="text-slate-600 leading-relaxed">
-          Every Naira is tracked from donation to delivery. Here is exactly how funds are allocated and how every
-          campaign is verified on the ground.
+    <div className="mx-auto max-w-7xl space-y-12 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="max-w-3xl space-y-4">
+        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#99782b]">Accountability</span>
+        <h1 className="font-serif text-4xl leading-[1.05] tracking-[-0.04em] text-[#16352f] sm:text-5xl">Follow the numbers as they change.</h1>
+        <p className="text-base leading-7 text-[#5e7069]">
+          The foundation may set a target for a campaign. Funds raised and donor counts update only after Paystack confirms a donation.
         </p>
       </div>
 
-      {/* Allocation */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-        {allocations.map((a) => (
-          <div key={a.label} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 text-center space-y-4">
-            <div className={`w-12 h-12 ${a.bg} ${a.color} rounded-2xl flex items-center justify-center mx-auto`}>
-              <a.icon className="w-6 h-6" />
-            </div>
-            <div className="text-3xl font-black text-slate-900">{a.pct}%</div>
-            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">{a.label}</div>
-            <ProgressBar raised={a.pct} goal={100} showLabels={false} />
-          </div>
-        ))}
-      </div>
-
-      {/* Live campaign funding */}
       <div className="space-y-8">
-        <div className="flex items-end justify-between">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Live Data</span>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight mt-1">Campaign Funding Tracker</h2>
-          </div>
-        </div>
+        <h2 className="font-serif text-3xl text-[#16352f]">Campaign funding</h2>
 
         {loading ? (
-          <div className="h-64 bg-slate-100 animate-pulse rounded-3xl" />
+          <div className="h-64 animate-pulse bg-[#e7e8e1]" />
+        ) : campaigns.length === 0 ? (
+          <div className="border border-[#d8ddd5] bg-[#fffdf8] px-6 py-12 text-center">
+            <ShieldCheck className="mx-auto h-8 w-8 text-[#99782b]" />
+            <h3 className="mt-4 font-serif text-2xl text-[#16352f]">No campaigns have been published yet</h3>
+            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#5e7069]">When the foundation publishes a campaign, its goal, verified donations, and live progress will appear here.</p>
+          </div>
         ) : (
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100">
-                  <th className="py-3 px-5">Campaign</th>
-                  <th className="py-3 px-5">Raised</th>
-                  <th className="py-3 px-5">Goal</th>
-                  <th className="py-3 px-5 w-56">Progress</th>
-                  <th className="py-3 px-5">Donors</th>
+          <div className="overflow-x-auto border border-[#d8ddd5] bg-[#fffdf8]">
+            <table className="w-full min-w-[760px] text-left">
+              <thead><tr className="border-b border-[#e3e5dc] bg-[#f1f0e9] text-[10px] font-bold uppercase tracking-[0.14em] text-[#63746c]">
+                  <th className="px-5 py-4">Campaign</th><th className="px-5 py-4">Raised</th><th className="px-5 py-4">Goal</th><th className="w-56 px-5 py-4">Progress</th><th className="px-5 py-4">Confirmed gifts</th><th className="px-5 py-4">Details</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-sm">
-                {campaigns.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/50">
-                    <td className="py-4 px-5 font-bold text-slate-900">{c.title}</td>
-                    <td className="py-4 px-5 font-bold text-emerald-600">{formatMoney(c.raisedAmount)}</td>
-                    <td className="py-4 px-5 text-slate-500">{formatMoney(c.goalAmount)}</td>
-                    <td className="py-4 px-5">
-                      <ProgressBar raised={c.raisedAmount} goal={c.goalAmount} showLabels={false} />
-                    </td>
-                    <td className="py-4 px-5 text-slate-500">{c._count?.donations ?? 0}</td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-[#e8e8e1] text-sm">
+                {campaigns.map((c) => <tr key={c.id}>
+                  <td className="px-5 py-4 font-semibold text-[#16352f]">{c.title}</td><td className="px-5 py-4 font-bold text-[#16352f]">{formatUsd(c.raisedAmount)}</td><td className="px-5 py-4 text-[#5e7069]">{c.goalAmount ? formatUsd(c.goalAmount) : 'Not set'}</td><td className="px-5 py-4"><ProgressBar raised={c.raisedAmount} goal={c.goalAmount} showLabels={false} /></td><td className="px-5 py-4 text-[#5e7069]">{c._count?.donations ?? 0}</td><td className="px-5 py-4"><a href={`/campaigns/${c.slug}`} className="inline-flex items-center gap-1 font-bold text-[#876a27]">View <ArrowUpRight className="h-3.5 w-3.5" /></a></td>
+                </tr>)}
               </tbody>
             </table>
           </div>
         )}
-      </div>
-
-      {/* Commitments */}
-      <div className="bg-slate-900 rounded-3xl p-10 md:p-14 text-white grid md:grid-cols-2 gap-10">
-        <div className="space-y-4">
-          <ShieldCheck className="w-10 h-10 text-emerald-400" />
-          <h3 className="text-2xl font-extrabold">Our Commitments</h3>
-          <p className="text-slate-400 text-sm leading-relaxed">
-            Trust is earned with receipts. Payments are processed by Paystack — we never see or store your card
-            details, and every donor receives an instant emailed receipt with a unique reference.
-          </p>
-        </div>
-        <ul className="space-y-4 text-sm">
-          {[
-            'Every donor receives an emailed receipt with a unique reference',
-            'Campaign progress is computed live from verified donations only',
-            'Annual reports published each January covering programs and spending',
-            'Independent annual audit of all foundation accounts',
-          ].map((item) => (
-            <li key={item} className="flex items-start space-x-3 text-slate-300">
-              <FileText className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-              <span>{item}</span>
-            </li>
-          ))}
-        </ul>
       </div>
     </div>
   );

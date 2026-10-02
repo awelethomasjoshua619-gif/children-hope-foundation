@@ -3,7 +3,7 @@ import { Download, Search } from 'lucide-react';
 import { adminApi } from '../../lib/api';
 import { Donation } from '../../types';
 
-const STATUSES = ['ALL', 'SUCCESS', 'PENDING', 'FAILED', 'ABANDONED'];
+const STATUSES = ['ALL', 'SUCCESS', 'PENDING', 'FAILED'];
 
 export const AdminDonationsPage: React.FC = () => {
   const [donations, setDonations] = useState<Donation[]>([]);
@@ -22,9 +22,6 @@ export const AdminDonationsPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [status, query]);
 
-  const formatMoney = (kobo: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(kobo / 100);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
@@ -33,7 +30,10 @@ export const AdminDonationsPage: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">{donations.length} records</p>
         </div>
         <a
-          href={adminApi.exportCsvUrl()}
+          href={adminApi.exportCsvUrl({
+            ...(status === 'ALL' ? {} : { status }),
+            ...(query.trim() ? { q: query.trim() } : {}),
+          })}
           className="flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm px-5 py-3 rounded-xl shadow-md transition-colors"
         >
           <Download className="w-4 h-4" />
@@ -70,8 +70,8 @@ export const AdminDonationsPage: React.FC = () => {
           <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <table className="w-full min-w-[760px] text-left">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                 <th className="py-3 px-5">Reference</th>
@@ -100,7 +100,7 @@ export const AdminDonationsPage: React.FC = () => {
                     <div className="text-xs text-slate-400">{d.donorEmail}</div>
                   </td>
                   <td className="py-3 px-5 text-slate-600 text-xs">{d.campaign?.title}</td>
-                  <td className="py-3 px-5 font-bold text-blue-600">{formatMoney(d.amount)}</td>
+                  <td className="py-3 px-5 font-bold text-blue-600">{new Intl.NumberFormat('en-US', { style: 'currency', currency: d.currency || 'USD' }).format(d.amount / 100)}</td>
                   <td className="py-3 px-5">
                     <span
                       className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${

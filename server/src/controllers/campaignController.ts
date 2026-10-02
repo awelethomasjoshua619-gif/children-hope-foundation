@@ -1,206 +1,138 @@
-import type { Request, Response } from 'express';
-import { Prisma, CampaignCategory, CampaignStatus } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { AppError } from '../middleware/errorHandler';
+import { createError } from '../middleware/errorHandler';
+import { AuthRequest } from '../middleware/auth';
 
-type CampaignWithStats = Prisma.CampaignGetPayload<object> & {
-  raised: number;
-  donorCount: number;
-  progress: number;
-};
-
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/['’]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60);
-}
-
-async function attachStats(campaigns: Array<Prisma.CampaignGetPayload<object>>): Promise<CampaignWithStats[]> {
-  return Promise.all(
-    campaigns.map(async (c) => {
-      const agg = await prisma.donation.aggregate({
-        where: { campaignId: c.id, status: 'SUCCESS' },
-        _sum: { amount: true },
-        _count: true,
-      });
-      const raised = Number(agg._sum.amount ?? 0);
-      const target = Number(c.targetAmount);
-      return {
-        ...c,
-        raised,
-        donorCount: agg._count,
-        progress: target > 0 ? Math.min(100, Math.round((raised / target) * 100)) : 0,
-      };
-    }),
-  );
-}
-
-// ── Public ─────────────────────────────────────────────────
-
-export async function listPublicCampaigns(req: Request, res: Response): Promise<void> {
-  const query = z
-    .object({
-      category: z.nativeEnum(CampaignCategory).optional(),
-      q: z.string().trim().max(100).optional(),
-      status: z.enum(['active', 'completed']).optional(),
-      sort: z.enum(['newest', 'ending', 'most-funded']).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(12),
-    })
-    .parse(req.query);
-
-  const where: Prisma.CampaignWhereInput = {
-    status: query.status === 'completed' ? CampaignStatus.COMPLETED : CampaignStatus.ACTIVE,
-    ...(query.category ? { category: query.category } : {}),
-    ...(query.q
-      ? { OR: [{ title: { contains: query.q, mode: 'insensitive' } }, { summary: { contains: query.q, mode: 'insensitive' } }] }
-      : {}),
-  };
-
-  const campaigns = await prisma.campaign.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    skip: (query.page - 1) * query.limit,
-    take: query.limit,
-  });
-  const total = await prisma.campaign.count({ where });
-  const withStats = await attachStats(campaigns);
-
-  if (query.sort === 'most-funded') {
-    withStats.sort((a, b) => b.raised - a.raised);
-  }
-
-  res.json({
-    campaigns: withStats,
-    pagination: {
-      page: query.page,
-      limit: query.limit,
-      total,
-      pages: Math.max(1, Math.ceil(total / query.limit)),
-    },
-  });
-}
-
-export async function getPublicCampaign(req: Request, res: Response): Promise<void> {
-  const { slug } = req.params;
-  const campaign = await prisma.campaign.findUnique({ where: { slug } });
-  if (!campaign || campaign.status === 'DRAFT' || campaign.status === 'ARCHIVED') {
-    throw new AppError(404, 'Campaign not found');
-  }
-
-  const [withStats] = await attachStats([campaign]);
-
-  const donations = await prisma.donation.findMany({
-    where: { campaignId: campaign.id, status: 'SUCCESS' },
-    orderBy: { createdAt: 'desc' },
-    take: 12,
-    select: { id: true, donorName: true, anonymous: true, amount: true, message: true, createdAt: true },
-  });
-
-  res.json({
-    campaign: withStats,
-    donations: donations.map((d) => ({
-      ...d,
-      amount: Number(d.amount),
-      donorName: d.anonymous ? 'Anonymous' : d.donorName,
-    })),
-  });
-}
-
-// ── Admin CRUD ─────────────────────────────────────────────
-
-const upsertSchema = z.object({
-  title: z.string().trim().min(3).max(120),
-  slug: z
-    .string()
-    .trim()
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug may only contain lowercase letters, numbers and dashes')
-    .max(60)
-    .optional(),
-  summary: z.string().trim().min(10).max(220),
-  description: z.string().trim().min(30),
-  category: z.nativeEnum(CampaignCategory),
-  status: z.nativeEnum(CampaignStatus).default(CampaignStatus.DRAFT),
-  targetAmount: z.number().positive('Target must be greater than zero').max(1_000_000_000),
-  coverImage: z.string().url().optional().or(z.literal('')),
-  country: z.string().trim().max(60).optional().or(z.literal('')),
+const campaignSchema = z.object({
+  title: z.string().min(5, 'Title must be at least 5 characters'),
+  slug: z.string().regex(/^[a-z0-9-]+$/, 'Slug must be lowercase letters, numbers, and hyphens only'),
+  description: z.string().min(20, 'Description must be at least 20 characters'),
+  story: z.string().min(50, 'Story must be at least 50 characters'),
+  goalAmount: z.number().int().positive('Goal amount must be positive').nullable().optional(),
+  category: z.string().min(1, 'Category is required'),
+  imageUrl: z.string().refine((value) => z.string().url().safeParse(value).success || /^\/(?!\/)[A-Za-z0-9/_\-.]+$/.test(value), 'Image must be a URL or a local asset path').optional().nullable(),
+  status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED']).optional(),
 });
 
-export async function adminListCampaigns(_req: Request, res: Response): Promise<void> {
-  const campaigns = await prisma.campaign.findMany({ orderBy: { createdAt: 'desc' } });
-  res.json({ campaigns: await attachStats(campaigns) });
-}
-
-export async function createCampaign(req: Request, res: Response): Promise<void> {
-  const body = upsertSchema.parse(req.body);
-
-  let slug = body.slug && body.slug.length > 0 ? body.slug : slugify(body.title);
-  const clash = await prisma.campaign.findUnique({ where: { slug } });
-  if (clash) slug = `${slug}-${Date.now().toString(36)}`;
-
-  const campaign = await prisma.campaign.create({
-    data: {
-      title: body.title,
-      slug,
-      summary: body.summary,
-      description: body.description,
-      category: body.category,
-      status: body.status,
-      targetAmount: body.targetAmount,
-      coverImage: body.coverImage || null,
-      country: body.country || null,
-    },
-  });
-
-  res.status(201).json({ campaign });
-}
-
-export async function updateCampaign(req: Request, res: Response): Promise<void> {
-  const body = upsertSchema.partial().parse(req.body);
-  const { id } = req.params;
-
-  const existing = await prisma.campaign.findUnique({ where: { id } });
-  if (!existing) throw new AppError(404, 'Campaign not found');
-
-  let slug = existing.slug;
-  if (body.slug !== undefined) {
-    slug = body.slug.length > 0 ? body.slug : slugify(body.title ?? existing.title);
-    const clash = await prisma.campaign.findFirst({ where: { slug, NOT: { id } } });
-    if (clash) throw new AppError(409, 'That slug is already in use');
-  }
-
-  const campaign = await prisma.campaign.update({
-    where: { id },
-    data: {
-      ...(body.title !== undefined ? { title: body.title } : {}),
-      slug,
-      ...(body.summary !== undefined ? { summary: body.summary } : {}),
-      ...(body.description !== undefined ? { description: body.description } : {}),
-      ...(body.category !== undefined ? { category: body.category } : {}),
-      ...(body.status !== undefined ? { status: body.status } : {}),
-      ...(body.targetAmount !== undefined ? { targetAmount: body.targetAmount } : {}),
-      ...(body.coverImage !== undefined ? { coverImage: body.coverImage || null } : {}),
-      ...(body.country !== undefined ? { country: body.country || null } : {}),
-    },
-  });
-
-  res.json({ campaign });
-}
-
-export async function deleteCampaign(req: Request, res: Response): Promise<void> {
-  const { id } = req.params;
-  const existing = await prisma.campaign.findUnique({ where: { id }, select: { id: true } });
-  if (!existing) throw new AppError(404, 'Campaign not found');
-
+// GET /api/campaigns — public, paginated
+export const listCampaigns = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await prisma.campaign.delete({ where: { id } });
-  } catch {
-    throw new AppError(409, 'Campaign has donations recorded against it — archive it instead of deleting.');
-  }
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(20, parseInt(req.query.limit as string) || 9);
+    const category = req.query.category as string | undefined;
+    const status = (req.query.status as string) || 'ACTIVE';
 
-  res.json({ ok: true });
-}
+    const where = {
+      ...(status !== 'all' && { status: status as any }),
+      ...(category && { category }),
+    };
+
+    const [campaigns, total] = await Promise.all([
+      prisma.campaign.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, title: true, slug: true, description: true,
+          goalAmount: true, raisedAmount: true, category: true,
+          imageUrl: true, status: true, createdAt: true,
+          _count: { select: { donations: { where: { status: 'SUCCESS' } } } },
+        },
+      }),
+      prisma.campaign.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        campaigns,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/campaigns/:slug — public
+export const getCampaign = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const campaign = await prisma.campaign.findUnique({
+      where: { slug: req.params.slug },
+      include: {
+        _count: { select: { donations: { where: { status: 'SUCCESS' } } } },
+      },
+    });
+
+    if (!campaign) return next(createError('Campaign not found', 404));
+
+    res.json({ success: true, data: { campaign } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/campaigns — admin only
+export const createCampaign = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const parsed = campaignSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return next(createError(parsed.error.errors[0].message, 400));
+    }
+
+    const slugExists = await prisma.campaign.findUnique({ where: { slug: parsed.data.slug } });
+    if (slugExists) return next(createError('Slug already in use', 409));
+
+    const campaign = await prisma.campaign.create({ data: parsed.data });
+    res.status(201).json({ success: true, message: 'Campaign created', data: { campaign } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/campaigns/:id — admin only
+export const updateCampaign = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const parsed = campaignSchema.partial().safeParse(req.body);
+    if (!parsed.success) {
+      return next(createError(parsed.error.errors[0].message, 400));
+    }
+
+    const existing = await prisma.campaign.findUnique({ where: { id: req.params.id } });
+    if (!existing) return next(createError('Campaign not found', 404));
+    if (parsed.data.slug && parsed.data.slug !== existing.slug) {
+      const slugExists = await prisma.campaign.findUnique({ where: { slug: parsed.data.slug } });
+      if (slugExists) return next(createError('Slug already in use', 409));
+    }
+
+    const campaign = await prisma.campaign.update({
+      where: { id: req.params.id },
+      data: parsed.data,
+    });
+
+    res.json({ success: true, message: 'Campaign updated', data: { campaign } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/campaigns/:id — admin only
+export const deleteCampaign = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.campaign.findUnique({
+      where: { id: req.params.id },
+      include: { _count: { select: { donations: true } } },
+    });
+    if (!existing) return next(createError('Campaign not found', 404));
+    if (existing._count.donations > 0) {
+      return next(createError('Campaigns with donations cannot be deleted. Pause the campaign instead.', 409));
+    }
+
+    await prisma.campaign.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Campaign deleted' });
+  } catch (error) {
+    next(error);
+  }
+};

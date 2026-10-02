@@ -1,220 +1,243 @@
-import crypto from 'crypto';
-import type { Request, Response } from 'express';
-import { Prisma, DonationStatus } from '@prisma/client';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
-import { AppError } from '../middleware/errorHandler';
-import { config } from '../config/env';
-import { initializeTransaction, verifyTransaction, verifyWebhookSignature } from '../services/paystack';
+import { createError } from '../middleware/errorHandler';
+import { AuthRequest } from '../middleware/auth';
+import {
+  initializeTransaction,
+  verifyTransaction,
+  verifyWebhookSignature,
+  generateReference,
+} from '../services/paystack';
 import { sendDonationReceipt, sendAdminDonationAlert } from '../services/email';
 
-function newReference(): string {
-  return `CHF-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-}
-
-const naira = (v: number) =>
-  new Prisma.Decimal(v).toDecimalPlaces(2);
-
 const initializeSchema = z.object({
+  amount: z.number().int().min(500, 'Minimum donation is $5'),
   campaignId: z.string().min(1),
-  amount: z.number().positive('Enter an amount').min(100, 'Minimum donation is ₦100').max(100_000_000),
-  donorName: z.string().trim().min(2, 'Enter your full name').max(80),
-  donorEmail: z.string().trim().toLowerCase().email('Enter a valid email'),
-  message: z.string().trim().max(500).optional().or(z.literal('')),
-  anonymous: z.boolean().optional(),
+  donorEmail: z.string().trim().email().transform((email) => email.toLowerCase()),
+  donorName: z.string().trim().max(120).optional(),
+  isAnonymous: z.boolean().optional().default(false),
+  isRecurring: z.literal(false).optional().default(false),
+  currency: z.literal('USD').optional().default('USD'),
 });
 
-const verifySchema = z.object({ reference: z.string().trim().min(4).max(64) });
+type SettledDonation = NonNullable<
+  Awaited<ReturnType<typeof settleSuccessfulDonation>>['donation']
+>;
 
-// ── POST /api/donations/initialize ─────────────────────────
-
-export async function initializeDonation(req: Request, res: Response): Promise<void> {
-  const body = initializeSchema.parse(req.body);
-
-  const campaign = await prisma.campaign.findUnique({ where: { id: body.campaignId } });
-  if (!campaign || campaign.status !== 'ACTIVE') {
-    throw new AppError(404, 'Campaign not found or no longer accepting donations');
-  }
-
-  const reference = newReference();
-
-  const donation = await prisma.donation.create({
-    data: {
-      reference,
-      amount: naira(body.amount),
-      donorName: body.donorName,
-      donorEmail: body.donorEmail,
-      message: body.message || null,
-      anonymous: body.anonymous ?? false,
-      status: DonationStatus.PENDING,
-      campaignId: campaign.id,
-      userId: req.user?.id ?? null,
-    },
-  });
-
-  const result = await initializeTransaction({
-    email: body.donorEmail,
-    amountKobo: Math.round(body.amount * 100),
-    reference,
-    callbackUrl: `${config.clientUrl}/donate/success`,
-    metadata: {
-      campaignId: campaign.id,
-      campaignTitle: campaign.title,
-      donorName: body.donorName,
-      donationId: donation.id,
-    },
-  });
-
-  res.status(201).json({
-    reference,
-    amount: body.amount,
-    currency: 'NGN',
-    campaignTitle: campaign.title,
-    authorizationUrl: result.authorizationUrl,
-    accessCode: result.accessCode,
-  });
-}
-
-// ── POST /api/donations/verify ─────────────────────────────
-
-export async function verifyDonation(req: Request, res: Response): Promise<void> {
-  const { reference } = verifySchema.parse(req.body);
-
-  const donation = await prisma.donation.findUnique({
-    where: { reference },
-    include: { campaign: { select: { title: true } } },
-  });
-  if (!donation) throw new AppError(404, 'Donation not found for that reference');
-
-  if (donation.status === DonationStatus.SUCCESS) {
-    res.json({ donation: serializeDonation(donation), alreadyVerified: true });
-    return;
-  }
-
-  const tx = await verifyTransaction(reference);
-
-  const expectedKobo = Number(donation.amount) * 100;
-  const paidEnough = tx.status === 'success' && tx.amount >= expectedKobo && tx.currency === 'NGN';
-
-  const updated = await prisma.donation.update({
-    where: { reference },
-    data: {
-      status: paidEnough ? DonationStatus.SUCCESS : tx.status === 'abandoned' ? DonationStatus.ABANDONED : DonationStatus.FAILED,
-      paystackFees: tx.fees !== null ? new Prisma.Decimal(tx.fees).div(100).toDecimalPlaces(2) : undefined,
-      paidAt: paidEnough ? (tx.paidAt ?? new Date()) : null,
-    },
-    include: { campaign: { select: { title: true } } },
-  });
-
-  if (paidEnough) {
-    void sendDonationReceipt({
-      email: updated.donorEmail,
-      name: updated.donorName,
-      amount: Number(updated.amount).toFixed(2),
-      currency: updated.currency,
-      reference: updated.reference,
-      campaignTitle: updated.campaign.title,
-      date: updated.paidAt ?? new Date(),
-    });
-    void sendAdminDonationAlert({
-      amount: Number(updated.amount).toFixed(2),
-      currency: updated.currency,
-      campaignTitle: updated.campaign.title,
-      donorName: updated.donorName,
-      donorEmail: updated.donorEmail,
-      reference: updated.reference,
-    });
-  }
-
-  res.json({ donation: serializeDonation(updated), alreadyVerified: false });
-}
-
-// ── POST /api/donations/webhook ────────────────────────────
-
-export async function paystackWebhook(req: Request, res: Response): Promise<void> {
-  const signature = req.headers['x-paystack-signature'] as string | undefined;
-
-  // express.json with verify() stored the raw body on req.rawBody
-  const raw = (req as Request & { rawBody?: Buffer }).rawBody;
-  if (!raw) {
-    res.status(400).send('Missing body');
-    return;
-  }
-  if (!verifyWebhookSignature(raw.toString('utf8'), signature)) {
-    res.status(401).send('Invalid signature');
-    return;
-  }
-
-  const event = JSON.parse(raw.toString('utf8')) as { event: string; data?: { reference?: string } };
-
-  if (event.event === 'charge.success' && event.data?.reference) {
-    const reference = event.data.reference;
-    const donation = await prisma.donation.findUnique({
-      where: { reference },
-      include: { campaign: { select: { title: true } } },
+async function settleSuccessfulDonation(reference: string, amount: number, currency: string) {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.donation.updateMany({
+      where: { paystackRef: reference, amount, currency, status: 'PENDING' },
+      data: { status: 'SUCCESS' },
     });
 
-    // Idempotent: only transition PENDING → SUCCESS
-    if (donation && donation.status === DonationStatus.PENDING) {
-      const updated = await prisma.donation.update({
-        where: { reference },
-        data: { status: DonationStatus.SUCCESS, paidAt: new Date() },
-        include: { campaign: { select: { title: true } } },
-      });
-      void sendDonationReceipt({
-        email: updated.donorEmail,
-        name: updated.donorName,
-        amount: Number(updated.amount).toFixed(2),
-        currency: updated.currency,
-        reference: updated.reference,
-        campaignTitle: updated.campaign.title,
-        date: updated.paidAt ?? new Date(),
-      });
-      void sendAdminDonationAlert({
-        amount: Number(updated.amount).toFixed(2),
-        currency: updated.currency,
-        campaignTitle: updated.campaign.title,
-        donorName: updated.donorName,
-        donorEmail: updated.donorEmail,
-        reference: updated.reference,
-      });
-    }
-  }
+    const donation = await tx.donation.findUnique({
+      where: { paystackRef: reference },
+      include: { campaign: true },
+    });
 
-  res.sendStatus(200);
-}
+    if (!donation || claimed.count === 0) return { donation, processed: false };
 
-// ── GET /api/donations/mine (auth) ─────────────────────────
+    await tx.campaign.update({
+      where: { id: donation.campaignId },
+      data: { raisedAmount: { increment: donation.amount } },
+    });
 
-export async function myDonations(req: Request, res: Response): Promise<void> {
-  const donations = await prisma.donation.findMany({
-    where: { userId: req.user!.id },
-    orderBy: { createdAt: 'desc' },
-    include: { campaign: { select: { title: true, slug: true } } },
+    return { donation, processed: true };
   });
-  res.json({ donations: donations.map(serializeDonation) });
 }
 
-// ── GET /api/donations/history?email= (guest lookup) ───────
+function notifyDonation(donation: SettledDonation) {
+  const details = {
+    donorName: donation.isAnonymous ? 'Anonymous' : donation.donorName || 'Generous Donor',
+    donorEmail: donation.donorEmail,
+    amount: donation.amount,
+    currency: donation.currency,
+    campaignTitle: donation.campaign.title,
+    reference: donation.paystackRef,
+  };
 
-export async function guestHistory(req: Request, res: Response): Promise<void> {
-  const email = z.string().trim().toLowerCase().email().parse(req.query.email);
-  const donations = await prisma.donation.findMany({
-    where: { donorEmail: email },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-    include: { campaign: { select: { title: true, slug: true } } },
-  });
-  res.json({ donations: donations.map(serializeDonation) });
+  void Promise.all([
+    sendDonationReceipt({ ...details, date: donation.updatedAt }),
+    sendAdminDonationAlert(details),
+  ]).catch((error) => console.error('Donation email delivery failed:', error));
 }
 
-function serializeDonation<T extends {
-  amount: Prisma.Decimal;
-  campaign: { title: string };
-}>(d: T) {
+function donationReceipt(donation: SettledDonation) {
   return {
-    ...d,
-    amount: Number(d.amount),
-    campaign: d.campaign,
+    id: donation.id,
+    amount: donation.amount,
+    currency: donation.currency,
+    campaignTitle: donation.campaign.title,
+    donorName: donation.isAnonymous ? null : donation.donorName,
+    donorEmail: donation.donorEmail,
+    reference: donation.paystackRef,
+    date: donation.updatedAt,
   };
 }
+
+// POST /api/donations/initialize
+export const initializeDonation = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const parsed = initializeSchema.safeParse(req.body);
+    if (!parsed.success) return next(createError(parsed.error.issues[0].message, 400));
+
+    const { amount, campaignId, donorEmail, donorName, isAnonymous, isRecurring, currency } = parsed.data;
+    const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) return next(createError('Campaign not found', 404));
+    if (campaign.status !== 'ACTIVE') return next(createError('Campaign is no longer active', 400));
+
+    const reference = generateReference();
+    const callbackUrl = `${(process.env.CLIENT_URL || 'http://localhost:5173').replace(/\/$/, '')}/donate/success?ref=${reference}`;
+
+    await prisma.donation.create({
+      data: {
+        amount,
+        currency,
+        donorEmail,
+        donorName: isAnonymous ? null : donorName || null,
+        isAnonymous,
+        isRecurring,
+        status: 'PENDING',
+        paystackRef: reference,
+        campaignId,
+        userId: req.user?.id || null,
+      },
+    });
+
+    const transaction = await initializeTransaction({
+      email: donorEmail,
+      amount,
+      reference,
+      currency,
+      callback_url: callbackUrl,
+      channels: currency === 'USD' ? ['card'] : ['card', 'bank', 'bank_transfer', 'ussd'],
+      metadata: {
+        campaignId,
+        campaignTitle: campaign.title,
+        donorName: isAnonymous ? 'Anonymous' : donorName || 'Generous Donor',
+        isAnonymous,
+        isRecurring,
+      },
+    });
+
+    res.json({
+      success: true,
+      data: { authorizationUrl: transaction.authorization_url, reference },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/donations/verify/:ref
+export const verifyDonation = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const reference = req.params.ref;
+    const donation = await prisma.donation.findUnique({
+      where: { paystackRef: reference },
+      include: { campaign: true },
+    });
+    if (!donation) return next(createError('Donation not found', 404));
+
+    if (donation.status === 'SUCCESS') {
+      return res.json({ success: true, data: { donation: donationReceipt(donation) } });
+    }
+
+    const transaction = await verifyTransaction(reference);
+    if (transaction.status !== 'success') {
+      if (transaction.status === 'failed' || transaction.status === 'abandoned') {
+        await prisma.donation.updateMany({
+          where: { paystackRef: reference, status: 'PENDING' },
+          data: { status: 'FAILED' },
+        });
+        const latest = await prisma.donation.findUnique({
+          where: { paystackRef: reference },
+          include: { campaign: true },
+        });
+        if (latest?.status === 'SUCCESS') {
+          return res.json({ success: true, data: { donation: donationReceipt(latest) } });
+        }
+        return next(createError('Payment was not successful', 400));
+      }
+      return res.status(202).json({
+        success: true,
+        message: 'Payment is still processing.',
+        data: { pending: true },
+      });
+    }
+
+    if (
+      transaction.reference !== reference ||
+      transaction.amount !== donation.amount ||
+      transaction.currency !== donation.currency
+    ) {
+      await prisma.donation.updateMany({
+        where: { paystackRef: reference, status: 'PENDING' },
+        data: { status: 'FAILED' },
+      });
+      return next(createError('Payment verification details did not match this donation', 400));
+    }
+
+    const settled = await settleSuccessfulDonation(reference, transaction.amount, transaction.currency);
+    if (!settled.donation || settled.donation.status !== 'SUCCESS') {
+      return next(createError('Payment could not be matched to this donation', 400));
+    }
+    if (settled.processed) notifyDonation(settled.donation);
+
+    res.json({ success: true, data: { donation: donationReceipt(settled.donation) } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/donations/webhook
+export const handleWebhook = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from('');
+    const signature = req.headers['x-paystack-signature'];
+    if (!verifyWebhookSignature(rawBody, Array.isArray(signature) ? signature[0] : signature)) {
+      return next(createError('Invalid webhook signature', 400));
+    }
+
+    const event = JSON.parse(rawBody.toString('utf8')) as {
+      event?: string;
+      data?: { reference?: string; amount?: number; currency?: string };
+    };
+
+    if (event.event === 'charge.success') {
+      const reference = event.data?.reference;
+      const amount = event.data?.amount;
+      const currency = event.data?.currency;
+      if (!reference || typeof amount !== 'number' || !Number.isInteger(amount) || !currency) {
+        return res.sendStatus(200);
+      }
+
+      const settled = await settleSuccessfulDonation(reference, amount, currency);
+      if (settled.processed && settled.donation) notifyDonation(settled.donation);
+    }
+
+    res.sendStatus(200);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/donations/mine
+export const getMyDonations = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const donations = await prisma.donation.findMany({
+      where: { userId: req.user!.id, status: 'SUCCESS' },
+      include: { campaign: { select: { title: true, slug: true, imageUrl: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ success: true, data: { donations } });
+  } catch (error) {
+    next(error);
+  }
+};

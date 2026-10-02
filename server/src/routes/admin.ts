@@ -1,22 +1,12 @@
 import { Router } from 'express';
-import {
-  getStats,
-  listDonations,
-  exportDonationsCsv,
-  listContactMessages,
-  markMessageHandled,
-} from '../controllers/adminController';
-import { requireAdmin } from '../middleware/auth';
-import ah from '../middleware/asyncHandler';
+import { getStats, getAllDonations } from '../controllers/adminController';
+import { authenticate, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-router.use(requireAdmin);
+router.use(authenticate, requireAdmin);
 
-router.get('/stats', ah(getStats));
-router.get('/donations', ah(listDonations));
-router.get('/donations/export', ah(exportDonationsCsv));
-router.get('/contact-messages', ah(listContactMessages));
-router.patch('/contact-messages/:id', ah(markMessageHandled));
+router.get('/stats', getStats);
+router.get('/donations', getAllDonations);
 
 export default router;

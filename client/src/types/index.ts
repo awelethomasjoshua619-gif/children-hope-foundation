@@ -12,19 +12,12 @@ export interface Campaign {
   slug: string;
   description: string;
   story?: string;
-  goalAmount: number; // in kobo
-  raisedAmount: number; // in kobo
+  goalAmount: number | null; // Optional USD cents target
+  raisedAmount: number; // confirmed USD cents
   category: string;
   imageUrl?: string | null;
-  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'DRAFT' | 'ARCHIVED';
+  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
   createdAt: string;
-  updatedAt?: string;
-  country?: string | null;
-  summary?: string;
-  raised?: number; // naira (compat with newer API)
-  targetAmount?: number; // naira (compat)
-  donorCount?: number;
-  progress?: number;
   _count?: {
     donations: number;
   };
@@ -32,18 +25,15 @@ export interface Campaign {
 
 export interface Donation {
   id: string;
-  amount: number; // in kobo
+  amount: number; // smallest unit of currency (USD cents for new donations)
   currency: string;
   donorEmail: string;
   donorName?: string | null;
   isAnonymous: boolean;
   isRecurring: boolean;
-  status: 'PENDING' | 'SUCCESS' | 'FAILED' | 'ABANDONED';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
   paystackRef: string;
-  reference?: string;
   campaignId: string;
-  message?: string | null;
-  paidAt?: string | null;
   campaign?: {
     title: string;
     slug: string;
@@ -54,7 +44,7 @@ export interface Donation {
 
 export interface AdminStats {
   totalDonations: number;
-  totalRaised: number; // in kobo
+  totalRaised: number; // USD cents
   thisMonthRaised: number;
   thisMonthCount: number;
   totalDonors: number;
@@ -62,9 +52,19 @@ export interface AdminStats {
   recentDonations: (Donation & { campaign: { title: string } })[];
 }
 
+export interface DonationReceipt {
+  id: string;
+  amount: number;
+  currency: string;
+  campaignTitle: string;
+  donorName: string | null;
+  donorEmail: string;
+  reference: string;
+  date: string;
+}
+
 export interface ImpactStat {
   id: string;
-  key: string;
   label: string;
   value: number;
   icon: string;

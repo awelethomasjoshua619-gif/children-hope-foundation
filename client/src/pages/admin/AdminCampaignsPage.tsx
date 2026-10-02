@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, ToggleLeft, ToggleRight, X } from 'lucide-react';
 import { campaignApi } from '../../lib/api';
+import { formatUsd } from '../../lib/currency';
 import { Campaign } from '../../types';
 
 const EMPTY_FORM: Partial<Campaign> = {
@@ -8,7 +9,7 @@ const EMPTY_FORM: Partial<Campaign> = {
   slug: '',
   description: '',
   story: '',
-  goalAmount: 0,
+  goalAmount: null,
   category: 'Education',
   imageUrl: '',
   status: 'ACTIVE',
@@ -26,7 +27,7 @@ export const AdminCampaignsPage: React.FC = () => {
   const fetchCampaigns = () => {
     setLoading(true);
     campaignApi
-      .listAll()
+      .list({ status: 'all', limit: 50 })
       .then((res) => {
         if (res.data?.campaigns) setCampaigns(res.data.campaigns);
       })
@@ -44,7 +45,7 @@ export const AdminCampaignsPage: React.FC = () => {
   };
 
   const openEdit = (c: Campaign) => {
-    setForm({ ...c, goalAmount: c.goalAmount / 100 }); // convert kobo→naira for UI
+    setForm({ ...c, goalAmount: c.goalAmount == null ? null : c.goalAmount / 100 }); // stored in cents, entered in dollars
     setEditingId(c.id);
     setError(null);
     setShowModal(true);
@@ -57,7 +58,8 @@ export const AdminCampaignsPage: React.FC = () => {
 
     const payload = {
       ...form,
-      goalAmount: Math.round((form.goalAmount as number) * 100), // naira→kobo
+      goalAmount: form.goalAmount == null ? null : Math.round(form.goalAmount * 100), // dollars→cents
+      imageUrl: form.imageUrl?.trim() || null,
     };
 
     try {
@@ -93,12 +95,9 @@ export const AdminCampaignsPage: React.FC = () => {
     } catch {}
   };
 
-  const formatMoney = (kobo: number) =>
-    new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(kobo / 100);
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-black text-slate-900">Campaign Management</h1>
           <p className="text-sm text-slate-500 mt-1">{campaigns.length} campaigns total</p>
@@ -115,8 +114,8 @@ export const AdminCampaignsPage: React.FC = () => {
       {loading ? (
         <div className="text-center py-20"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" /></div>
       ) : (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-          <table className="w-full text-left">
+        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-sm">
+          <table className="w-full min-w-[700px] text-left">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                 <th className="py-3 px-5">Campaign</th>
@@ -137,8 +136,8 @@ export const AdminCampaignsPage: React.FC = () => {
                   <td className="py-4 px-5">
                     <span className="bg-blue-50 text-blue-700 text-[11px] font-bold px-2.5 py-0.5 rounded-full">{c.category}</span>
                   </td>
-                  <td className="py-4 px-5 font-semibold text-slate-700">{formatMoney(c.goalAmount)}</td>
-                  <td className="py-4 px-5 font-bold text-emerald-600">{formatMoney(c.raisedAmount)}</td>
+                  <td className="py-4 px-5 font-semibold text-slate-700">{c.goalAmount ? formatUsd(c.goalAmount) : 'Not set'}</td>
+                  <td className="py-4 px-5 font-bold text-emerald-600">{formatUsd(c.raisedAmount)}</td>
                   <td className="py-4 px-5">
                     <button
                       onClick={() => toggleStatus(c)}
@@ -215,7 +214,7 @@ export const AdminCampaignsPage: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Category *</label>
                   <select
@@ -227,18 +226,17 @@ export const AdminCampaignsPage: React.FC = () => {
                     <option>Healthcare</option>
                     <option>Food Relief</option>
                     <option>Water</option>
-                    <option>Emergency</option>
                     <option>General</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Goal (₦) *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Goal (USD, optional)</label>
                   <input
                     required
                     type="number"
-                    min="100"
-                    value={form.goalAmount || ''}
-                    onChange={(e) => setForm({ ...form, goalAmount: parseFloat(e.target.value) })}
+                    min="0.01"
+                    value={form.goalAmount ?? ''}
+                    onChange={(e) => setForm({ ...form, goalAmount: e.target.value ? parseFloat(e.target.value) : null })}
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 text-sm"
                     placeholder="e.g. 5000000"
                   />
@@ -294,18 +292,18 @@ export const AdminCampaignsPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
+              <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-6 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+                  className="w-full rounded-xl bg-slate-100 px-6 py-2.5 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-6 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-md shadow-blue-600/30 disabled:opacity-50 transition-colors"
+                  className="w-full rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-600/30 transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                 >
                   {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create Campaign'}
                 </button>

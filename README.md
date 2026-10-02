@@ -1,90 +1,76 @@
 # Children Hope Foundation
 
-Full-stack platform for a nonprofit providing **education, healthcare and food support** to children in Africa.
+A full-stack fundraising MVP for education, healthcare, and food support for children in Africa.
 
-| Layer    | Tech |
-|----------|------|
-| Frontend | React 18 + Vite + TypeScript + Tailwind CSS + React Router |
-| Backend  | Node.js + Express + TypeScript |
-| Database | PostgreSQL + Prisma ORM |
-| Payments | Paystack (NGN card/bank/USSD + international cards) |
-| Auth     | JWT in httpOnly cookies |
-| Email    | Nodemailer (donor receipts + admin alerts) |
+## Stack
 
-## Project structure
+- `client/`: React, Vite, TypeScript, Tailwind CSS
+- `server/`: Express, TypeScript, Prisma, PostgreSQL
+- Payments: Paystack (USD, subject to account USD activation)
+- Authentication: JWT stored in an httpOnly cookie
+- Email: Resend
 
+## Local setup
+
+1. Install dependencies from the project root:
+
+   ```sh
+   npm install
+   ```
+
+2. Configure `server/.env` using the variables below. Use your local PostgreSQL database and Paystack test credentials during development.
+
+   ```env
+   DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/children_hope_db?schema=public"
+   PORT=5000
+   CLIENT_URL=http://localhost:5173
+   JWT_SECRET=replace-with-a-long-random-secret
+   SEED_ADMIN_PASSWORD=choose-a-unique-password-of-at-least-12-characters
+   PAYSTACK_SECRET_KEY=sk_test_...
+   PAYSTACK_PUBLIC_KEY=pk_test_...
+   RESEND_API_KEY=re_...
+   RESEND_DEMO_MODE=true
+   MAIL_FROM=Children Hope Foundation <onboarding@resend.dev>
+   ADMIN_EMAIL=admin@example.com
+   ```
+
+   Local email demo mode routes messages to Resend's test inbox. Configure `MAIL_FROM` with a verified domain when sending real email. USD payments also require Paystack to enable USD for your account. Put valid Paystack test keys in `server/.env`, then run `npm run setup:paystack` to validate them without printing the keys.
+
+3. Create the PostgreSQL database, apply the Prisma schema, and seed an admin account:
+
+   ```sh
+   createdb children_hope_db
+   npm run db:push
+   npm run db:seed
+   ```
+
+   If the database already exists, skip `createdb`. Set `SEED_ADMIN_PASSWORD` in `server/.env` before seeding.
+
+   The seed admin account is `admin@childrenhope.org`; its password is read from `SEED_ADMIN_PASSWORD` so the repository does not seed a known credential.
+
+4. Start the backend and frontend in separate terminals:
+
+   ```sh
+   npm run dev:server
+   npm run dev:client
+   ```
+
+   Open <http://localhost:5173>. The Vite dev server proxies `/api` requests to the backend on port 5000.
+
+## Build
+
+```sh
+npm run build
 ```
-├─ client/            React SPA (Vite)
-│  └─ src/
-│     ├─ components/  Navbar, Footer, CampaignCard, DonateForm, ...
-│     ├─ context/     AuthContext (JWT session)
-│     ├─ hooks/       useAuth, useCampaigns, useDonations
-│     ├─ lib/         typed API client
-│     ├─ pages/       public + auth + dashboard pages
-│     │  └─ admin/    admin console pages
-│     └─ types/       shared TS types
-└─ server/            Express API
-   └─ src/
-      ├─ controllers/ route logic
-      ├─ middleware/  auth, error handler, rate limiters
-      ├─ routes/      auth, campaigns, donations, admin
-      ├─ services/    paystack, email
-      └─ lib/         prisma singleton
-```
 
-## Quick start
+This builds the client and type-checks/compiles the server. `npm run build:client` and `npm run build:server` are also available individually.
 
-```bash
-# 1. Install
-npm install
+For local production-style processes, run `npm run start:server` and host `client/dist` as static files with `/api` routed to the server. `npm run preview:client` previews the built client locally.
 
-# 2. Configure — fill in your Postgres URL + Paystack test keys in .env
-cp .env .env.local   # (or edit .env directly)
+## Main routes
 
-# 3. Database
-npm run db:push      # create tables from schema
-npm run db:seed      # admin user + sample campaigns
+- Public site: campaigns, campaign details, donation, about, contact, and transparency
+- Donor: account registration/login and donation history
+- Admin: campaign management and donation reports/CSV export
 
-# 4. Run (API on :4000, web app on :5173)
-npm run dev
-```
-
-### Production build
-
-```bash
-npm run build        # compiles server (dist/) and client (dist/)
-npm run start -w server
-```
-
-The server serves the built client from `client/dist` when `NODE_ENV=production`, so a single `node server/dist/index.js` process can serve the whole app.
-
-## Seeded accounts
-
-| Role  | Email                     | Password    |
-|-------|---------------------------|-------------|
-| Admin | `admin@childrenhope.org`  | `Admin123!` |
-| Donor | `donor@example.com`       | `Donor123!` |
-
-## Paystack flow
-
-1. `POST /api/donations/initialize` — server creates a `PENDING` donation, calls Paystack's `transaction/initialize`, returns the hosted `authorization_url`.
-2. Donor completes payment on the Paystack page (test cards: `4084 0840 8408 4081`, any future expiry, CVV `408`).
-3. Paystack redirects to `/donate/success?reference=...`; the client calls `POST /api/donations/verify`.
-4. Server verifies the transaction with Paystack and marks the donation `SUCCESS` (or `FAILED`), sends the receipt email, and alerts admins.
-5. `POST /api/donations/webhook` — idempotent Paystack webhook as a backup path (HMAC-SHA512 signature verified with the secret key).
-
-## Security notes
-
-- JWT stored in an httpOnly, SameSite=Lax cookie; password hashing with bcryptjs.
-- Zod validation on every write endpoint.
-- Rate limiting on auth and donation endpoints.
-- Paystack webhook signature verification; idempotent handling by reference.
-- Admin routes guarded by role middleware.
-
-## Deployment checklist
-
-- [ ] Strong `JWT_SECRET`
-- [ ] Live Paystack keys + real webhook URL (`/api/donations/webhook`) registered in the Paystack dashboard
-- [ ] Managed Postgres (Neon/Supabase/RDS) and `prisma migrate deploy`
-- [ ] SMTP credentials (Gmail app password, Postmark, SES…) for receipts
-- [ ] `CLIENT_URL` set to the public origin (used for Paystack callbacks)
+Paystack payments require valid test or live API keys and a publicly reachable webhook URL for webhook-based confirmation. Local development defaults to Resend demo mode, which sends to `delivered@resend.dev` through Resend's test sender. Set `RESEND_DEMO_MODE=false` and use a verified sending domain before production deployment.

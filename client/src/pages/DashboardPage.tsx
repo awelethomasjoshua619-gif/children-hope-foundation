@@ -4,6 +4,7 @@ import { Heart, Calendar, ArrowUpRight, Award } from 'lucide-react';
 import { donationApi } from '../lib/api';
 import { Donation } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { formatUsd } from '../lib/currency';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -22,41 +23,12 @@ export const DashboardPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const totalDonatedKobo = donations
-    .filter((d) => d.status === 'SUCCESS')
-    .reduce((acc, d) => acc + d.amount, 0);
-
-  const formatMoney = (kobo: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(kobo / 100);
-  };
-
-  const statusBadge = (status: string) => {
-    if (status === 'SUCCESS')
-      return (
-        <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-          CONFIRMED
-        </span>
-      );
-    if (status === 'PENDING')
-      return (
-        <span className="inline-block bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-          PENDING
-        </span>
-      );
-    return (
-      <span className="inline-block bg-rose-100 text-rose-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
-        {status}
-      </span>
-    );
-  };
+  const totalDonatedCents = donations.filter((d) => d.status === 'SUCCESS' && d.currency === 'USD').reduce((acc, d) => acc + d.amount, 0);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-10">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-3xl p-8 md:p-12 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <div className="bg-gradient-to-r from-blue-700 to-blue-500 rounded-3xl p-5 sm:p-8 md:p-12 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-2">
           <span className="text-xs font-extrabold uppercase tracking-widest bg-white/20 text-white px-3 py-1 rounded-full">
             Donor Dashboard
@@ -65,9 +37,9 @@ export const DashboardPage: React.FC = () => {
           <p className="text-blue-100 text-sm">Thank you for being a part of transforming lives across Africa.</p>
         </div>
 
-        <div className="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-2xl text-right min-w-[200px]">
+        <div className="w-full min-w-0 rounded-2xl border border-white/20 bg-white/10 p-5 text-left backdrop-blur-md sm:p-6 md:w-auto md:min-w-[200px] md:text-right">
           <div className="text-xs font-bold text-blue-200 uppercase tracking-wider">Total Impact Contributed</div>
-          <div className="text-3xl font-black mt-1">{formatMoney(totalDonatedKobo)}</div>
+          <div className="text-3xl font-black mt-1">{formatUsd(totalDonatedCents)}</div>
         </div>
       </div>
 
@@ -110,7 +82,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <table className="w-full min-w-[680px] text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-[11px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100">
                   <th className="py-4 px-6">Date</th>
@@ -133,13 +105,15 @@ export const DashboardPage: React.FC = () => {
                       {donation.campaign?.title || 'General Fund'}
                     </td>
                     <td className="py-4 px-6 font-extrabold text-blue-600">
-                      {formatMoney(donation.amount)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: donation.currency || 'USD' }).format(donation.amount / 100)}
                     </td>
                     <td className="py-4 px-6 font-mono text-xs text-slate-500">
                       {donation.paystackRef}
                     </td>
                     <td className="py-4 px-6">
-                      {statusBadge(donation.status)}
+                      <span className="inline-block bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
+                        CONFIRMED
+                      </span>
                     </td>
                   </tr>
                 ))}

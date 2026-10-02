@@ -1,25 +1,19 @@
 import { Router } from 'express';
 import {
-  listPublicCampaigns,
-  getPublicCampaign,
-  adminListCampaigns,
+  listCampaigns,
+  getCampaign,
   createCampaign,
   updateCampaign,
   deleteCampaign,
 } from '../controllers/campaignController';
-import { requireAdmin } from '../middleware/auth';
-import ah from '../middleware/asyncHandler';
+import { authenticate, requireAdmin } from '../middleware/auth';
 
 const router = Router();
 
-// Public
-router.get('/', ah(listPublicCampaigns));
-router.get('/:slug', ah(getPublicCampaign));
-
-// Admin
-router.get('/admin/all', requireAdmin, ah(adminListCampaigns));
-router.post('/admin', requireAdmin, ah(createCampaign));
-router.patch('/admin/:id', requireAdmin, ah(updateCampaign));
-router.delete('/admin/:id', requireAdmin, ah(deleteCampaign));
+router.get('/', listCampaigns);
+router.get('/:slug', getCampaign);
+router.post('/', authenticate, requireAdmin, createCampaign);
+router.put('/:id', authenticate, requireAdmin, updateCampaign);
+router.delete('/:id', authenticate, requireAdmin, deleteCampaign);
 
 export default router;

@@ -2,20 +2,17 @@ import { Router } from 'express';
 import {
   initializeDonation,
   verifyDonation,
-  paystackWebhook,
-  myDonations,
-  guestHistory,
+  handleWebhook,
+  getMyDonations,
 } from '../controllers/donationController';
-import { requireAuth } from '../middleware/auth';
+import { authenticate, optionalAuthenticate } from '../middleware/auth';
 import { donationLimiter } from '../middleware/rateLimiter';
-import ah from '../middleware/asyncHandler';
 
 const router = Router();
 
-router.post('/initialize', donationLimiter, ah(initializeDonation));
-router.post('/verify', donationLimiter, ah(verifyDonation));
-router.post('/webhook', ah(paystackWebhook));
-router.get('/mine', requireAuth, ah(myDonations));
-router.get('/history', donationLimiter, ah(guestHistory));
+router.post('/initialize', optionalAuthenticate, donationLimiter, initializeDonation);
+router.get('/verify/:ref', verifyDonation);
+router.post('/webhook', handleWebhook);
+router.get('/mine', authenticate, getMyDonations);
 
 export default router;

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, User, LogOut, Menu, X, Shield } from 'lucide-react';
+import { User, LogOut, Menu, X, Shield, ArrowUpRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { BrandMark } from './BrandMark';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
@@ -14,39 +15,40 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm">
+    <header className="sticky top-0 z-50 border-b border-[#dfe3da] bg-[#fdfcf8]/95 backdrop-blur-md">
+      <div className="hidden border-b border-[#e7e8e1] bg-[#16352f] px-4 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-[#f4e8bd] sm:block">
+        Community-led programs across Africa · Transparent project reporting
+      </div>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-20 items-center">
+        <div className="flex justify-between h-[72px] items-center">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-3 group">
-            <div className="w-10 h-10 bg-gradient-to-tr from-blue-700 to-blue-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Heart className="w-5 h-5 fill-current" />
-            </div>
+            <BrandMark size={42} className="transition-transform group-hover:scale-105" />
             <div>
-              <span className="font-extrabold text-xl tracking-tight text-slate-900 block leading-none">
+              <span className="font-extrabold text-lg tracking-tight text-[#16352f] block leading-none">
                 Children Hope
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-600">
+              <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#777551]">
                 Foundation
               </span>
             </div>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link to="/" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+          <nav className="hidden md:flex items-center space-x-7">
+            <Link to="/" className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors">
               Home
             </Link>
-            <Link to="/campaigns" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+            <Link to="/campaigns" className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors">
               Causes & Campaigns
             </Link>
-            <Link to="/transparency" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+            <Link to="/transparency" className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors">
               Transparency
             </Link>
-            <Link to="/about" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+            <Link to="/about" className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors">
               About
             </Link>
-            <Link to="/contact" className="text-sm font-semibold text-slate-600 hover:text-blue-600 transition-colors">
+            <Link to="/contact" className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors">
               Contact
             </Link>
           </nav>
@@ -58,7 +60,7 @@ export const Navbar: React.FC = () => {
                 {user.role === 'ADMIN' ? (
                   <Link
                     to="/admin/dashboard"
-                    className="flex items-center space-x-1 text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 px-3 py-2 rounded-lg hover:bg-amber-100 transition-colors"
+                    className="flex items-center space-x-1 text-xs font-bold bg-[#f5edcf] text-[#695b24] border border-[#dfd19c] px-3 py-2 rounded-lg hover:bg-[#eee2b8] transition-colors"
                   >
                     <Shield className="w-3.5 h-3.5" />
                     <span>Admin Panel</span>
@@ -66,7 +68,7 @@ export const Navbar: React.FC = () => {
                 ) : (
                   <Link
                     to="/dashboard"
-                    className="flex items-center space-x-1 text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors"
+                    className="flex items-center space-x-1 text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors"
                   >
                     <User className="w-4 h-4" />
                     <span>My History</span>
@@ -75,7 +77,7 @@ export const Navbar: React.FC = () => {
 
                 <button
                   onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+                  className="p-2 text-slate-400 hover:text-[#16352f] rounded-lg hover:bg-[#f2f0e9] transition-colors"
                   title="Logout"
                 >
                   <LogOut className="w-4 h-4" />
@@ -84,7 +86,7 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors"
+                className="text-sm font-semibold text-[#52655f] hover:text-[#16352f] transition-colors"
               >
                 Sign In
               </Link>
@@ -92,17 +94,20 @@ export const Navbar: React.FC = () => {
 
             <Link
               to="/campaigns"
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/25 hover:shadow-blue-600/40 transition-all hover:-translate-y-0.5"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#c49d45] px-5 py-2.5 text-sm font-bold text-[#17332e] transition-colors hover:bg-[#d6b15e]"
             >
-              Donate Now
+              Donate <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-600 hover:text-slate-900"
+              className="p-2 text-[#52655f] hover:text-[#16352f]"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -112,50 +117,50 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-2 pb-6 space-y-3">
+        <div className="md:hidden bg-[#fdfcf8] border-b border-[#dfe3da] px-4 pt-2 pb-6 space-y-3">
           <Link
             to="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-semibold text-slate-700"
+            className="block py-2 text-base font-semibold text-[#16352f]"
           >
             Home
           </Link>
           <Link
             to="/campaigns"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-semibold text-slate-700"
+            className="block py-2 text-base font-semibold text-[#16352f]"
           >
             Causes & Campaigns
           </Link>
           <Link
             to="/transparency"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-semibold text-slate-700"
+            className="block py-2 text-base font-semibold text-[#16352f]"
           >
             Transparency
           </Link>
           <Link
             to="/about"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-semibold text-slate-700"
+            className="block py-2 text-base font-semibold text-[#16352f]"
           >
             About Us
           </Link>
           <Link
             to="/contact"
             onClick={() => setMobileMenuOpen(false)}
-            className="block py-2 text-base font-semibold text-slate-700"
+            className="block py-2 text-base font-semibold text-[#16352f]"
           >
             Contact
           </Link>
 
-          <div className="pt-4 border-t border-slate-100 flex flex-col space-y-2">
+          <div className="pt-4 border-t border-[#e7e8e1] flex flex-col space-y-2">
             {user ? (
               <>
                 <Link
                   to={user.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block py-2 text-base font-semibold text-blue-600"
+                  className="block py-2 text-base font-semibold text-[#16352f]"
                 >
                   Dashboard ({user.name})
                 </Link>
@@ -164,7 +169,7 @@ export const Navbar: React.FC = () => {
                     handleLogout();
                     setMobileMenuOpen(false);
                   }}
-                  className="text-left py-2 text-base font-semibold text-rose-600"
+              className="text-left py-2 text-base font-semibold text-rose-700"
                 >
                   Log Out
                 </button>
@@ -173,7 +178,7 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block py-2 text-base font-semibold text-slate-700"
+                className="block py-2 text-base font-semibold text-[#16352f]"
               >
                 Sign In / Register
               </Link>
@@ -182,7 +187,7 @@ export const Navbar: React.FC = () => {
             <Link
               to="/campaigns"
               onClick={() => setMobileMenuOpen(false)}
-              className="w-full text-center bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md"
+              className="w-full text-center bg-[#c49d45] text-[#16352f] font-bold py-3 rounded-full"
             >
               Donate Now
             </Link>

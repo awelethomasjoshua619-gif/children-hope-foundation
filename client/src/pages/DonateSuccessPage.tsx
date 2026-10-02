@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { CheckCircle2, Download, ArrowRight, XCircle } from 'lucide-react';
 import { donationApi } from '../lib/api';
-import { Donation } from '../types';
+import { DonationReceipt } from '../types';
 
 export const DonateSuccessPage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const ref = searchParams.get('ref') || searchParams.get('reference') || searchParams.get('trxref');
+  const ref = searchParams.get('ref');
 
   const [loading, setLoading] = useState(true);
-  const [donation, setDonation] = useState<(Donation & { campaignTitle?: string }) | null>(null);
+  const [donation, setDonation] = useState<DonationReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,17 +19,40 @@ export const DonateSuccessPage: React.FC = () => {
       return;
     }
 
-    donationApi
-      .verify(ref)
-      .then((res) => {
+    let cancelled = false;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const verify = async () => {
+      timer = undefined;
+      try {
+        const res = await donationApi.verify(ref);
+        if (cancelled) return;
         if (res.data?.donation) {
-          setDonation(res.data.donation as any);
+          setDonation(res.data.donation);
+          setLoading(false);
+          return;
         }
-      })
-      .catch((err) => {
-        setError(err.message || 'Payment verification failed');
-      })
-      .finally(() => setLoading(false));
+        if (res.data?.pending && attempts < 5) {
+          attempts += 1;
+          timer = setTimeout(verify, 2000);
+          return;
+        }
+        setError(res.message || 'Payment could not be confirmed. Please contact support with your payment reference.');
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Payment verification failed');
+        }
+      } finally {
+        if (!cancelled && !timer) setLoading(false);
+      }
+    };
+
+    void verify();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [ref]);
 
   if (loading) {
@@ -60,11 +83,11 @@ export const DonateSuccessPage: React.FC = () => {
     );
   }
 
-  const formatMoney = (kobo: number, curr: string) => {
-    return new Intl.NumberFormat('en-NG', {
+  const formatMoney = (cents: number, curr: string) => {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: curr || 'NGN',
-    }).format(kobo / 100);
+      currency: curr || 'USD',
+    }).format(cents / 100);
   };
 
   return (
@@ -78,8 +101,7 @@ export const DonateSuccessPage: React.FC = () => {
           <span className="text-xs font-bold uppercase tracking-widest text-emerald-600">Payment Confirmed</span>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Thank You For Your Support!</h1>
           <p className="text-slate-600 text-sm max-w-md mx-auto">
-            Your generous gift has been received and confirmed. A formal tax-deductible receipt has been sent to{' '}
-            <strong className="text-slate-900">{donation.donorEmail}</strong>.
+            Your payment has been confirmed. You can print this receipt for your records.
           </p>
         </div>
 
@@ -88,7 +110,7 @@ export const DonateSuccessPage: React.FC = () => {
           <div className="flex justify-between items-center pb-3 border-b border-slate-200">
             <span className="text-xs text-slate-500 uppercase tracking-wider font-bold">Donation Details</span>
             <span className="text-xs font-mono font-bold bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full">
-              {donation.status}
+              SUCCESS
             </span>
           </div>
 
@@ -99,12 +121,12 @@ export const DonateSuccessPage: React.FC = () => {
 
           <div className="flex justify-between text-sm py-1">
             <span className="text-slate-500">Cause</span>
-            <span className="font-semibold text-slate-800">{donation.campaignTitle || donation.campaign?.title || 'General Fund'}</span>
+            <span className="font-semibold text-slate-800">{donation.campaignTitle}</span>
           </div>
 
           <div className="flex justify-between text-sm py-1">
             <span className="text-slate-500">Reference</span>
-            <span className="font-mono text-xs text-slate-600">{donation.paystackRef}</span>
+            <span className="font-mono text-xs text-slate-600">{donation.reference}</span>
           </div>
         </div>
 

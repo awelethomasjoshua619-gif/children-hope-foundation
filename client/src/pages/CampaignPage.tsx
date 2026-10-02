@@ -5,6 +5,7 @@ import { campaignApi } from '../lib/api';
 import { Campaign } from '../types';
 import { ProgressBar } from '../components/ProgressBar';
 import { DonateForm } from '../components/DonateForm';
+import { CampaignArtwork } from '../components/CampaignArtwork';
 
 export const CampaignPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
@@ -70,19 +71,16 @@ export const CampaignPage: React.FC = () => {
       </div>
 
       {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12">
         {/* Left Col: Image & Story */}
         <div className="lg:col-span-7 space-y-8">
-          <div className="aspect-[16/10] rounded-3xl overflow-hidden shadow-xl bg-slate-100 border border-slate-100">
-            <img
-              src={campaign.imageUrl || 'https://images.unsplash.com/photo-1594608661623-aa0bd3a69d98?q=80&w=800&fit=crop'}
-              alt={campaign.title}
-              className="w-full h-full object-cover"
-            />
+          <div className="relative aspect-[16/10] overflow-hidden rounded-3xl border border-slate-100 bg-slate-100 shadow-xl">
+            {campaign.imageUrl ? <img src={campaign.imageUrl} alt={campaign.imageUrl.includes('-illustrative.') ? `${campaign.category} illustrative stock photo` : campaign.title} className="h-full w-full object-cover" /> : <CampaignArtwork category={campaign.category} />}
+            {campaign.imageUrl?.includes('-illustrative.') && <span className="absolute bottom-4 left-4 rounded-full bg-[#102a25]/85 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-white">Illustrative photo · not a project photo</span>}
           </div>
 
-          <div className="bg-white p-8 md:p-10 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+          <div className="bg-white p-5 sm:p-8 md:p-10 rounded-3xl border border-slate-100 shadow-sm space-y-6">
+            <div className="flex flex-col items-start gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="text-xl font-bold text-slate-900">Campaign Story</h3>
               <button
                 onClick={handleShare}
@@ -94,20 +92,20 @@ export const CampaignPage: React.FC = () => {
             </div>
 
             <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed whitespace-pre-line text-base">
-              {campaign.story}
+              {campaign.story || campaign.description}
             </div>
           </div>
         </div>
 
         {/* Right Col: Progress & Donation Form */}
-        <div className="lg:col-span-5 space-y-6 sticky top-28">
+        <div className="space-y-6 lg:sticky lg:top-28 lg:col-span-5">
           <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-md space-y-4">
             <ProgressBar raised={campaign.raisedAmount} goal={campaign.goalAmount} />
-            <div className="flex justify-between text-xs text-slate-500 font-semibold pt-2 border-t border-slate-100">
+            <div className="flex flex-col gap-2 border-t border-slate-100 pt-2 text-xs font-semibold text-slate-500 sm:flex-row sm:justify-between">
               <span>Verified Donors: <strong className="text-slate-800">{campaign._count?.donations || 0}</strong></span>
-              <span className="flex items-center space-x-1 text-emerald-600 font-bold">
+                <span className="flex items-center space-x-1 text-emerald-600 font-bold">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Verified Direct Impact</span>
+                <span>Confirmed payment totals</span>
               </span>
             </div>
           </div>

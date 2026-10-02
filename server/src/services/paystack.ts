@@ -1,105 +1,102 @@
+import axios from 'axios';
 import crypto from 'crypto';
-import { config } from '../config/env';
-import { AppError } from '../middleware/errorHandler';
+import { createError } from '../middleware/errorHandler';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
+const SECRET_KEY = process.env.PAYSTACK_SECRET_KEY!;
 
-export interface InitializeResult {
-  authorizationUrl: string;
-  accessCode: string;
-  reference: string;
-}
+const paystackApi = axios.create({
+  baseURL: PAYSTACK_BASE,
+  headers: {
+    Authorization: `Bearer ${SECRET_KEY}`,
+    'Content-Type': 'application/json',
+  },
+});
 
-export interface VerifyResult {
-  status: 'success' | 'failed' | 'abandoned' | 'pending';
-  amount: number; // in kobo
-  currency: string;
-  paidAt: Date | null;
-  fees: number | null;
-  channel: string | null;
-  gatewayResponse: string | null;
-}
-
-async function paystackRequest<T>(
-  method: 'GET' | 'POST',
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  const res = await fetch(`${PAYSTACK_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${config.paystackSecretKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const json = (await res.json().catch(() => null)) as
-    | { status: boolean; message?: string; data?: T }
-    | null;
-
-  if (!res.ok || !json?.status || json.data === undefined) {
-    throw new AppError(502, json?.message ?? 'Payment gateway error — please try again.');
-  }
-  return json.data;
-}
-
-export async function initializeTransaction(input: {
+export interface InitializeTransactionParams {
   email: string;
-  amountKobo: number;
+  amount: number; // in the currency's smallest unit (USD cents for USD)
   reference: string;
-  callbackUrl: string;
-  metadata: Record<string, unknown>;
-}): Promise<InitializeResult> {
-  const data = await paystackRequest<{ authorization_url: string; access_code: string; reference: string }>(
-    'POST',
-    '/transaction/initialize',
-    {
-      email: input.email,
-      amount: input.amountKobo,
-      reference: input.reference,
-      callback_url: input.callbackUrl,
-      currency: 'NGN',
-      metadata: input.metadata,
-    },
-  );
-
-  return {
-    authorizationUrl: data.authorization_url,
-    accessCode: data.access_code,
-    reference: data.reference,
-  };
+  currency?: string;
+  callback_url: string;
+  metadata?: Record<string, unknown>;
+  plan?: string; // for recurring
+  channels?: string[];
 }
 
-export async function verifyTransaction(reference: string): Promise<VerifyResult> {
-  const d = await paystackRequest<{
-    status: string;
-    amount: number;
-    currency: string;
-    paid_at: string | null;
-    fees: number | null;
-    channel: string | null;
-    gateway_response: string | null;
-  }>('GET', `/transaction/verify/${encodeURIComponent(reference)}`);
-
-  return {
-    status: d.status === 'success' ? 'success' : d.status === 'abandoned' ? 'abandoned' : d.status === 'failed' ? 'failed' : 'pending',
-    amount: d.amount,
-    currency: d.currency,
-    paidAt: d.paid_at ? new Date(d.paid_at) : null,
-    fees: d.fees ?? null,
-    channel: d.channel ?? null,
-    gatewayResponse: d.gateway_response ?? null,
+export interface PaystackTransaction {
+  id: number;
+  status: string;
+  reference: string;
+  amount: number;
+  currency: string;
+  customer: {
+    email: string;
+    first_name?: string;
+    last_name?: string;
   };
+  metadata?: Record<string, unknown>;
+  paid_at?: string;
 }
 
-/** Verify HMAC-SHA512 signature of the raw webhook body using the secret key. */
-export function verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
-  if (!signature) return false;
-  const expected = crypto.createHmac('sha512', config.paystackSecretKey).update(rawBody).digest('hex');
+/**
+ * Initialize a Paystack transaction — returns authorization URL to redirect user to
+ */
+export const initializeTransaction = async (
+  params: InitializeTransactionParams
+) => {
   try {
-    return crypto.timingSafeEqual(Buffer.from(expected, 'utf8'), Buffer.from(signature, 'utf8'));
-  } catch {
-    return false;
+    const response = await paystackApi.post('/transaction/initialize', params);
+    return response.data.data as {
+      authorization_url: string;
+      access_code: string;
+      reference: string;
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw createError('Paystack could not initialize this payment. Check the payment configuration and try again.', 502);
+    }
+    throw error;
   }
-}
+};
+
+/**
+ * Verify a Paystack transaction by reference — ALWAYS call this server-side
+ * Never trust client-reported payment status
+ */
+export const verifyTransaction = async (reference: string) => {
+  try {
+    const response = await paystackApi.get(
+      `/transaction/verify/${encodeURIComponent(reference)}`
+    );
+    return response.data.data as PaystackTransaction;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw createError('Paystack could not verify this payment. Please try again shortly.', 502);
+    }
+    throw error;
+  }
+};
+
+/**
+ * Verify Paystack webhook signature
+ * Returns true if the request is genuinely from Paystack
+ */
+export const verifyWebhookSignature = (
+  rawBody: Buffer,
+  signature: string | undefined
+): boolean => {
+  if (!signature || !/^[a-f0-9]{128}$/i.test(signature)) return false;
+  const hash = crypto
+    .createHmac('sha512', SECRET_KEY)
+    .update(rawBody)
+    .digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(signature, 'hex'));
+};
+
+/**
+ * Generate a unique reference for a transaction
+ */
+export const generateReference = (): string => {
+  return `CHF-${Date.now()}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+};

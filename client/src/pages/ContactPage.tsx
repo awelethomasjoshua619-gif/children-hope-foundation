@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { Send, CheckCircle2 } from 'lucide-react';
 import { contactApi } from '../lib/api';
 
 export const ContactPage: React.FC = () => {
@@ -26,47 +26,22 @@ export const ContactPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 space-y-12">
-      <div className="text-center space-y-4 max-w-3xl mx-auto">
-        <span className="text-xs font-bold uppercase tracking-widest text-blue-600">Get in Touch</span>
-        <h1 className="text-4xl font-black text-slate-900 tracking-tight">Contact Us</h1>
-        <p className="text-slate-600">
-          Questions about a donation, partnership ideas or press enquiries — we'd love to hear from you.
-        </p>
+    <div className="mx-auto max-w-7xl space-y-12 px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="max-w-3xl space-y-4">
+        <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#99782b]">Get in touch</span>
+        <h1 className="font-serif text-4xl leading-[1.05] tracking-[-0.04em] text-[#16352f] sm:text-5xl">Send us a message.</h1>
+        <p className="text-[#5e7069]">Submit a question or note using the form. Your message will be saved to the foundation’s contact records.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-        {/* Contact info */}
-        <div className="lg:col-span-5 space-y-6">
-          {[
-            { icon: Mail, title: 'Email', text: 'info@childrenhope.org' },
-            { icon: Phone, title: 'Phone', text: '+234 (0) 800 244 5373' },
-            { icon: MapPin, title: 'Office', text: 'Lagos, Nigeria & East Africa Regional HQ' },
-            { icon: Clock, title: 'Response Time', text: 'Within 2 business days' },
-          ].map((c) => (
-            <div key={c.title} className="flex items-start space-x-4 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-              <div className="w-11 h-11 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
-                <c.icon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm">{c.title}</h3>
-                <p className="text-slate-600 text-sm">{c.text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Form */}
-        <div className="lg:col-span-7">
+      <div className="max-w-3xl">
           {sent ? (
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-12 text-center space-y-4">
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-6 sm:p-12 text-center space-y-4">
               <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-black text-slate-900">Message Sent!</h2>
-              <p className="text-sm text-slate-600 max-w-sm mx-auto">
-                Thank you, {name.split(' ')[0]}. A confirmation is on its way to your inbox — we'll reply within 2
-                business days.
+              <h2 className="font-serif text-3xl text-[#16352f]">Message saved.</h2>
+              <p className="text-sm text-[#5e7069] max-w-sm mx-auto">
+                Thank you, {name.split(' ')[0]}. Your message has been recorded.
               </p>
               <button
                 onClick={() => {
@@ -82,7 +57,7 @@ export const ContactPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="bg-white p-8 rounded-3xl border border-slate-100 shadow-xl space-y-5">
+            <form onSubmit={handleSubmit} className="bg-white p-5 sm:p-8 rounded-3xl border border-slate-100 shadow-xl space-y-5">
               {error && (
                 <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm p-4 rounded-2xl">{error}</div>
               )}
@@ -142,7 +117,6 @@ export const ContactPage: React.FC = () => {
             </form>
           )}
         </div>
-      </div>
     </div>
   );
 };

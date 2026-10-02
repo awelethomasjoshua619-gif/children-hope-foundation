@@ -15,8 +15,13 @@ export async function submitContact(req: Request, res: Response): Promise<void> 
 
   await prisma.contactMessage.create({ data: body });
 
-  void sendContactFormNotification(body);
-  void sendContactConfirmation({ name: body.name, email: body.email });
+  void Promise.all([
+    sendContactFormNotification(body),
+    sendContactConfirmation({ name: body.name, email: body.email }),
+  ]).catch((error) => console.error('Contact email delivery failed:', error));
 
-  res.status(201).json({ ok: true, message: 'Message received — we will reply within 2 business days.' });
+  res.status(201).json({
+    success: true,
+    message: 'Message saved successfully.',
+  });
 }

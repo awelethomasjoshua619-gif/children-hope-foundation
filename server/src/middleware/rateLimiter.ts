@@ -1,28 +1,32 @@
 import rateLimit from 'express-rate-limit';
 
-const standard = {
+export const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again in 15 minutes.',
+  },
   standardHeaders: true,
   legacyHeaders: false,
-  message: { message: 'Too many requests — please slow down and try again shortly.' },
-};
+});
 
-/** Login/register/me — generous enough for real users, tight on brute force. */
-export const authLimiter = rateLimit({
-  ...standard,
+export const donationLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  message: {
+    success: false,
+    message: 'Too many donation attempts. Please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-/** Donation init/verify — payments are low-frequency actions. */
-export const donationLimiter = rateLimit({
-  ...standard,
-  windowMs: 10 * 60 * 1000,
-  max: 30,
-});
-
-/** Contact form + everything else. */
-export const apiLimiter = rateLimit({
-  ...standard,
+export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
 });
+
+export const apiLimiter = generalLimiter;

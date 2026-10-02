@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Shield, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { authApi } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { BrandMark } from '../../components/BrandMark';
 
 export const AdminLoginPage: React.FC = () => {
   const { login } = useAuth();
@@ -40,9 +41,7 @@ export const AdminLoginPage: React.FC = () => {
     <div className="max-w-md mx-auto px-4 py-20">
       <div className="bg-white p-8 md:p-10 rounded-3xl border border-slate-100 shadow-2xl space-y-6">
         <div className="text-center space-y-2">
-          <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center text-white mx-auto shadow-md">
-            <Shield className="w-6 h-6" />
-          </div>
+          <BrandMark size={56} className="mx-auto shadow-md shadow-emerald-900/15" />
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">Admin Console</h2>
           <p className="text-xs text-slate-500">Staff access only</p>
         </div>

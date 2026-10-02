@@ -1,14 +1,13 @@
 import { Router } from 'express';
-import { register, login, logout, me } from '../controllers/authController';
-import { requireAuth } from '../middleware/auth';
+import { register, login, logout, getMe } from '../controllers/authController';
+import { authenticate } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimiter';
-import ah from '../middleware/asyncHandler';
 
 const router = Router();
 
-router.post('/register', authLimiter, ah(register));
-router.post('/login', authLimiter, ah(login));
-router.post('/logout', ah(logout));
-router.get('/me', requireAuth, ah(me));
+router.post('/register', authLimiter, register);
+router.post('/login', authLimiter, login);
+router.post('/logout', logout);
+router.get('/me', authenticate, getMe);
 
 export default router;
